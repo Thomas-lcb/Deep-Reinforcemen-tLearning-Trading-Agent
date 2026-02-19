@@ -1,0 +1,15 @@
+.env.real
+__pycache__/
+*.pyc
+*.pyo
+data/raw/
+data/processed/
+models/saved/
+logs/
+notebooks/.ipynb_checkpoints/
+.vscode/
+.idea/
+*.egg-info/
+dist/
+build/
+venv/

@@ -1,0 +1,109 @@
+training:
+  total_timesteps: 2000000
+  n_envs: 4  # Parallel environments
+  
+  domain_randomization:
+    enabled: true
+    capital_variation_pct: 0.20
+    fee_range: [0.0005, 0.0015]
+
+  # SAC Hyperparameters
+  sac:
+    learning_rate: "linear_0.0007"   # Linear decay from 7e-4 → 0
+    buffer_size: 300000              # Larger replay buffer for better sample diversity
+    batch_size: 256
+    gamma: 0.99
+    tau: 0.005
+    train_freq: 1
+    gradient_steps: 1
+    ent_coef: "auto_0.01"            # Auto-tuned with floor at 0.01 (prevents exploration collapse)
+    target_entropy: "auto"
+    policy_kwargs:
+      net_arch: [512, 512, 256]      # Deeper network for complex market patterns
+    
+  # PPO Hyperparameters
+  ppo:
+    learning_rate: "linear_0.0007"
+    n_steps: 2048
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    ent_coef: 0.01
+
+data:
+  lookback_window: 30
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+market:
+  exchange: binance
+  pairs:
+    - BTC/USDT
+    - ETH/USDT
+    - SOL/USDT
+    - BNB/USDT
+    - XRP/USDT
+    - ADA/USDT
+    - DOGE/USDT
+    - DOT/USDT
+    - MATIC/USDT
+    - LTC/USDT
+  timeframe: 1h
+  history_years: 5
+
+fees:
+  maker: 0.001
+  taker: 0.001
+
+action:
+  dead_zone: 0.05
+  cooldown_steps: 0
+  max_position_pct: 0.25            # Max 25% of capital per single trade
+
+observation:
+  features:
+    - rsi
+    - macd
+    - atr
+    - bollinger
+    - obv
+    - adx
+    - cci
+    - sma
+    - ema
+    - log_return
+    - volatility
+  
+  multi_timeframe:
+    enabled: true
+    source_tf: "1h"
+    target_tfs: ["4h", "1d"]
+    features: ["rsi", "ema200_dir", "ema200_dist", "atr_pct"]
+
+  sentiment:
+    fear_and_greed: true
+
+reward:
+  fee_penalty_weight: 1.0
+  volatility_penalty: 0.1
+  reward_scale: 100.0               # Scale rewards to avoid very large cumulative values
+  drawdown_penalty:
+    enabled: true
+    threshold_pct: 0.03             # Trigger at 3% drawdown (was 5%)
+    penalty_factor: 5.0             # Stronger penalty (was 2.0)
+  sharpe_bonus:
+    enabled: true
+    window: 100
+    weight: 0.01
+  trend_alignment_bonus:
+    enabled: true
+    weight: 0.005
+
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  models: "models"
+  logs: "logs"
