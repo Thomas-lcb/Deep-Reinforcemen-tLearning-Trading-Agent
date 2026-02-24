@@ -33,6 +33,7 @@ class RewardCalculator:
         # Core weights
         self.fee_penalty_weight = cfg.get("fee_penalty_weight", 1.0)
         self.volatility_penalty = cfg.get("volatility_penalty", 0.1)  # λ
+        self.reward_scale = cfg.get("reward_scale", 1.0)
 
         # Drawdown penalty
         dd_cfg = cfg.get("drawdown_penalty", {})
@@ -132,6 +133,8 @@ class RewardCalculator:
 
         # --- Total ---
         total = log_return + fee_penalty + vol_penalty + drawdown_penalty + sharpe_bonus + trend_bonus
+        if self.reward_scale and self.reward_scale != 0.0:
+            total = total / self.reward_scale
 
         return {
             "total": float(total),

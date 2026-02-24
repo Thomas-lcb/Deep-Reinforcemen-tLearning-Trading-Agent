@@ -39,8 +39,8 @@
 - [ ] 3.3 — Implémenter `training/curriculum.py` : curriculum learning (tendance → latéral → chaotique)
 - [x] 3.4 — Implémenter `training/hyperparams.py` : recherche via Optuna (learning rate, λ, réseau, etc.)
 - [/] 3.5 — Lancer le premier entraînement SAC (2M+ timesteps) *(bug Monitor corrigé, prêt à relancer)*
-- [ ] 3.6 — Lancer l'entraînement PPO pour comparaison
-- [ ] 3.7 — Analyser les courbes Tensorboard et sélectionner le meilleur modèle
+- [x] 3.6 — Lancer l'entraînement PPO pour comparaison
+- [/] 3.7 — Analyser les courbes Tensorboard et sélectionner le meilleur modèle
 
 ---
 

@@ -66,6 +66,7 @@ class TestActions:
         assert env.balance_asset > 0
 
     def test_sell_after_buy(self, env):
+        env.max_position_pct = 1.0  # Bypass position cap for this test
         env.reset(seed=0)
         env.step(np.array([1.0]))  # Buy all
         obs, r, term, trunc, info = env.step(np.array([-1.0]))  # Sell all

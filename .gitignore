@@ -5,6 +5,7 @@ __pycache__/
 data/raw/
 data/processed/
 models/saved/
+models/checkpoints/
 logs/
 notebooks/.ipynb_checkpoints/
 .vscode/
@@ -13,3 +14,5 @@ notebooks/.ipynb_checkpoints/
 dist/
 build/
 venv/
+agend.md
+Next_step.md
