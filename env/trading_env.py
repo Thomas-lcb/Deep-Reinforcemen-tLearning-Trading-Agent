@@ -274,12 +274,18 @@ class CryptoTradingEnv(gym.Env):
         # Position direction: +1 if long (holding asset), 0 if flat
         pos_dir = 1.0 if self.balance_asset > 1e-10 else 0.0
 
+        # Unrealized PNL percentage
+        unrealized_pnl_pct = 0.0
+        if self.balance_asset > 1e-10 and self.entry_price > 0:
+            unrealized_pnl_pct = (current_price_now - self.entry_price) / self.entry_price
+
         reward_info = self.reward_calc.calculate(
             current_value=current_value,
             previous_value=prev_value,
             action_magnitude=abs(raw_action) if trade["type"] != "hold" else 0.0,
             fee=trade["fee"],
             current_volatility=current_volatility,
+            unrealized_pnl_pct=unrealized_pnl_pct,
             trend_direction=trend_dir,
             position_direction=pos_dir,
         )

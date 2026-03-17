@@ -136,7 +136,8 @@ L'agent reçoit une **fenêtre glissante** (ex: 30 dernières bougies) contenant
 | Volume | OBV (On-Balance Volume), VWAP |
 
 **3. Données Multi-Timeframe :**
-- Direction de l'EMA 200 sur le **Daily** (tendance macro).
+- Direction de l'EMA 200 sur le **Daily** (tendance macro journalière).
+- Tendance très long terme **1W** (hebdomadaire).
 - RSI et ATR agrégés sur **4H** (contexte intermédiaire).
 - Permet à l'agent d'aligner ses trades 1H avec la tendance de fond.
 
@@ -176,7 +177,8 @@ $$R_t = \log\left(\frac{v_t}{v_{t-1}}\right) - c \cdot |action| - \lambda \cdot 
 | $\lambda \cdot \sigma_t$ | Pénalité de volatilité (risk aversion) |
 
 **Termes additionnels :**
-- **Pénalité de drawdown** : Si le portefeuille perd > X% depuis son pic → pénalité sévère (stop-loss implicite).
+- **Bonus de PnL Latent (Unrealized PNL)** : Gagne des points tant que la position tenue est en profil. Incite l'agent à "laisser courir ses gains" et faire du *trend following*.
+- **Pénalité de drawdown** : Si le portefeuille perd > 3% depuis son pic → pénalité sévère (stop-loss implicite).
 - **Bonus de Sharpe glissant** : Petit bonus quand le Sharpe ratio sur les 100 derniers steps s'améliore.
 - **Reward shaping** : Faible bonus quand l'agent prend une position alignée avec la tendance (l'EMA macro), pour accélérer l'apprentissage initial.
 
@@ -206,13 +208,14 @@ $$R_t = \log\left(\frac{v_t}{v_{t-1}}\right) - c \cdot |action| - \lambda \cdot 
 3. **Domain Randomization** : à chaque `reset()`, varier le capital initial (±20%), les frais (0.05%-0.15%), et le point de départ dans les données.
 
 ### Phase 3 : Entraînement
-1. **Algorithme principal : SAC** (meilleur pour les espaces continus grâce à l'entropie maximale).
-2. **Algorithme de comparaison : PPO** (plus conservateur, baseline robuste).
-3. Entraînement sur **2M+ timesteps** minimum.
-4. **Curriculum Learning** : commencer par les périodes de forte tendance, puis introduire les marchés latéraux.
-5. **Prioritized Experience Replay (PER)** pour SAC : prioriser les transitions à forte erreur TD.
-6. Monitoring via `Tensorboard` + `Weights & Biases`.
-7. Recherche d'hyperparamètres via **Optuna** (learning rate, $\lambda$, taille du réseau, etc.).
+1. **Algorithme principal : PPO** (robuste, on-policy, très stable pour le trading) ou **SAC** (off-policy continu).
+2. **Utilisation GPU intensive :** Entraînement sur 6 environnements parallèles (CPU `n_envs: 6`), avec de gros paquets de données pour le GPU (`batch_size: 1024`, `n_steps: 8192`) et un grand cerveau `[1024, 1024, 512]`.
+3. **Curriculum Learning (`curriculum.py`)** :
+    - *Niveau 1 (Débutant)* : 500k steps, BTC/ETH, 0% frais. Apprentissage du trend following basique.
+    - *Niveau 2 (Intermédiaire)* : 1M steps, +3 gros alts, 0.1% frais binance. Apprentissage de la rareté des trades.
+    - *Niveau 3 (Expert)* : 1.5M steps, 10 paires + *Domain Randomization* (fluctuation capitaux/frais). Généralisation.
+4. Monitoring continu via `Weights & Biases (W&B)` et `Tensorboard`.
+5. Recherche d'hyperparamètres via **Optuna** (learning rate, $\lambda$, taille du réseau, etc.).
 
 ### Phase 4 : Backtesting & Visualisation
 1.  **Moteur de Backtest** : Tester sur données **out-of-sample** (2024-2025).

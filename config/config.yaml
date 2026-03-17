@@ -1,6 +1,6 @@
 training:
   total_timesteps: 2000000
-  n_envs: 4  # Parallel environments
+  n_envs: 4  # Reduced to 4 parallel environments to lower RAM/GPU footprint
   
   domain_randomization:
     enabled: true
@@ -19,18 +19,19 @@ training:
     ent_coef: "auto_0.01"            # Auto-tuned with floor at 0.01 (prevents exploration collapse)
     target_entropy: "auto"
     policy_kwargs:
-      net_arch: [512, 512, 256]      # Deeper network for complex market patterns
+      net_arch: [1024, 1024, 512]    # Deeper network for complex market patterns
     
-  # PPO Hyperparameters
   ppo:
     learning_rate: "linear_0.0007"
-    n_steps: 2048
-    batch_size: 64
+    n_steps: 4096                    # Reduced from 8192 to lower RAM rollout buffer footprint
+    batch_size: 512                  # Reduced from 1024 for lighter GPU batches
     n_epochs: 10
     gamma: 0.99
     gae_lambda: 0.95
     clip_range: 0.2
     ent_coef: 0.01
+    policy_kwargs:
+      net_arch: [512, 512, 256]      # Slightly reduced network to save memory while keeping it expressive
 
 data:
   lookback_window: 30
@@ -80,8 +81,8 @@ observation:
   multi_timeframe:
     enabled: true
     source_tf: "1h"
-    target_tfs: ["4h", "1d"]
-    features: ["rsi", "ema200_dir", "ema200_dist", "atr_pct"]
+    target_tfs: ["4h", "1d", "1w"]   # Added weekly timeframe for macro trend
+    features: ["rsi", "ema_200_direction", "atr"]
 
   sentiment:
     fear_and_greed: true
@@ -89,6 +90,7 @@ observation:
 reward:
   fee_penalty_weight: 1.0
   volatility_penalty: 0.1
+  unrealized_pnl_weight: 0.1        # Reward agent for holding winning positions
   reward_scale: 100.0               # Scale rewards to avoid very large cumulative values
   drawdown_penalty:
     enabled: true

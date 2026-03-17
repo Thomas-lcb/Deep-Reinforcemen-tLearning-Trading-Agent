@@ -198,7 +198,13 @@ def process_and_save(
         df = add_sentiment_data(df, sentiment_df)
         print(f"  ✅ Sentiment data merged: {len(df.columns)} columns")
 
-    # 3. Drop NaN rows (from indicator warm-up)
+    # 3. Forward-fill multi-timeframe columns (they have long warm-up periods
+    #    from EMA200 on daily/weekly resampled data — we don't want to drop
+    #    33k rows). Then drop remaining NaNs from short 1H indicator warm-up.
+    mtf_cols = [c for c in df.columns if c.startswith("mtf_")]
+    if mtf_cols:
+        df[mtf_cols] = df[mtf_cols].ffill().fillna(0.0)
+
     rows_before = len(df)
     df = df.dropna()
     print(f"  🧹 Dropped {rows_before - len(df)} NaN rows (indicator warm-up)")

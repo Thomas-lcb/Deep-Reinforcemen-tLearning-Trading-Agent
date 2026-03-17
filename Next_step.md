@@ -13,7 +13,7 @@
 - [x] 1.4 — Implémenter `data/download.py` : téléchargement OHLCV via CCXT (BTC/USDT, ETH/USDT, SOL/USDT, 1H, 5 ans)
 - [x] 1.5 — Implémenter `features/indicators.py` : calcul des indicateurs techniques (cf. agent.md §5.A.2)
 - [x] 1.6 — Implémenter `features/normalizer.py` : rolling z-score (cf. agent.md §5.A.1 — anti data-leakage)
-- [x] 1.7 — Implémenter `features/multi_timeframe.py` : agrégation 4H et 1D (cf. agent.md §5.A.3)
+- [x] 1.7 — Implémenter `features/multi_timeframe.py` : agrégation 4H, 1D, 1W (macro)
 - [x] 1.8 — Script de split Train/Val/Test (70/15/15, chronologique) — intégré dans `data/download.py`
 - [ ] 1.9 — Data augmentation : bruit gaussien, jitter volumes, inversion temporelle
 
@@ -36,11 +36,13 @@
 
 - [x] 3.1 — Implémenter `training/train.py` : script d'entraînement SAC + PPO via Stable-Baselines3
 - [x] 3.2 — Implémenter `training/callbacks.py` : callbacks Tensorboard, early stopping, checkpoint
-- [ ] 3.3 — Implémenter `training/curriculum.py` : curriculum learning (tendance → latéral → chaotique)
+- [x] 3.3 — Implémenter `training/curriculum.py` : curriculum learning progressif (3 niveaux de difficulté)
 - [x] 3.4 — Implémenter `training/hyperparams.py` : recherche via Optuna (learning rate, λ, réseau, etc.)
-- [/] 3.5 — Lancer le premier entraînement SAC (2M+ timesteps) *(bug Monitor corrigé, prêt à relancer)*
-- [x] 3.6 — Lancer l'entraînement PPO pour comparaison
-- [/] 3.7 — Analyser les courbes Tensorboard et sélectionner le meilleur modèle
+- [x] 3.5 — Lancer le premier entraînement SAC (2M+ timesteps) *(Terminé, analysé)*
+- [x] 3.6 — Lancer l'entraînement PPO pour comparaison *(Terminé, analysé)*
+- [x] 3.7 — Analyser les courbes Tensorboard et sélectionner le meilleur modèle *(PPO conservateur, nécessité de Curriculum)*
+- [x] 3.8 — Lancer l'entraînement Curriculum Learning PPO sur 10 paires & 1W *(Terminé)*
+- [x] 3.9 — Intégration de Weights & Biases (W&B) pour le suivi des expériences *(Terminé)*
 
 ---
 

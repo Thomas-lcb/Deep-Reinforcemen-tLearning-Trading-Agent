@@ -34,7 +34,7 @@ def add_multi_timeframe_features(
     """
     df = df.copy()
     cfg = config or {}
-    target_tfs = cfg.get("timeframes", ["4h", "1d"])
+    target_tfs = cfg.get("target_tfs", cfg.get("timeframes", ["4h", "1d"]))
     features = cfg.get("features", ["ema_200_direction", "rsi", "atr"])
 
     # Mapping from config timeframe strings to pandas resample rules
@@ -43,6 +43,8 @@ def add_multi_timeframe_features(
         "1d": "1D",
         "1D": "1D",
         "4H": "4h",
+        "1w": "1W",
+        "1W": "1W",
     }
 
     for tf in target_tfs:
@@ -100,14 +102,16 @@ def _compute_tf_features(
     result = pd.DataFrame(index=df.index)
 
     for feat in features:
-        if feat == "ema_200_direction":
-            ema = ta.ema(df["close"], length=200)
+        if feat in ("ema_200_direction", "ema200_dir", "ema200_dist"):
+            # Use shorter EMA for small datasets (e.g. weekly candles)
+            ema_len = 200 if len(df) >= 250 else 50
+            ema = ta.ema(df["close"], length=ema_len)
             if ema is not None:
-                # +1 if price above EMA 200, -1 otherwise
+                # +1 if price above EMA, -1 otherwise
                 result[f"{prefix}ema200_dir"] = np.where(
                     df["close"] > ema, 1.0, -1.0
                 )
-                # Distance from EMA 200 as a ratio
+                # Distance from EMA as a ratio
                 result[f"{prefix}ema200_dist"] = (df["close"] - ema) / (ema + 1e-10)
 
         elif feat == "rsi":
@@ -116,7 +120,7 @@ def _compute_tf_features(
                 # Normalize RSI to [-1, 1] range (originally 0-100)
                 result[f"{prefix}rsi"] = (rsi - 50) / 50
 
-        elif feat == "atr":
+        elif feat in ("atr", "atr_pct"):
             atr = ta.atr(df["high"], df["low"], df["close"], length=14)
             if atr is not None:
                 # ATR as percentage of close price

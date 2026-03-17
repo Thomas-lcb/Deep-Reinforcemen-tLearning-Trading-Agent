@@ -14,5 +14,7 @@ notebooks/.ipynb_checkpoints/
 dist/
 build/
 venv/
-agend.md
+agent.md
 Next_step.md
+wandb/
+.env

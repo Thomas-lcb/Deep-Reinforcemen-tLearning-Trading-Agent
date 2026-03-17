@@ -33,6 +33,7 @@ class RewardCalculator:
         # Core weights
         self.fee_penalty_weight = cfg.get("fee_penalty_weight", 1.0)
         self.volatility_penalty = cfg.get("volatility_penalty", 0.1)  # λ
+        self.unrealized_pnl_weight = cfg.get("unrealized_pnl_weight", 0.0)
         self.reward_scale = cfg.get("reward_scale", 1.0)
 
         # Drawdown penalty
@@ -71,6 +72,7 @@ class RewardCalculator:
         action_magnitude: float,
         fee: float,
         current_volatility: float,
+        unrealized_pnl_pct: float = 0.0,
         trend_direction: float = 0.0,
         position_direction: float = 0.0,
     ) -> dict:
@@ -83,6 +85,7 @@ class RewardCalculator:
             action_magnitude: |action| for fee penalty (0 = hold).
             fee: Actual fee paid this step.
             current_volatility: Recent volatility (e.g. ATR or rolling std).
+            unrealized_pnl_pct: Current position's unrealized profit/loss percentage.
             trend_direction: +1 if macro trend is up, -1 if down, 0 if neutral.
             position_direction: +1 if agent is long, -1 if short, 0 if flat.
 
@@ -132,7 +135,9 @@ class RewardCalculator:
             trend_bonus = self.trend_weight * alignment
 
         # --- Total ---
-        total = log_return + fee_penalty + vol_penalty + drawdown_penalty + sharpe_bonus + trend_bonus
+        unrealized_pnl_bonus = self.unrealized_pnl_weight * unrealized_pnl_pct
+        
+        total = log_return + fee_penalty + vol_penalty + drawdown_penalty + sharpe_bonus + trend_bonus + unrealized_pnl_bonus
         if self.reward_scale and self.reward_scale != 0.0:
             total = total / self.reward_scale
 
@@ -141,6 +146,7 @@ class RewardCalculator:
             "log_return": float(log_return),
             "fee_penalty": float(fee_penalty),
             "vol_penalty": float(vol_penalty),
+            "unrealized_pnl_bonus": float(unrealized_pnl_bonus),
             "drawdown_penalty": float(drawdown_penalty),
             "sharpe_bonus": float(sharpe_bonus),
             "trend_bonus": float(trend_bonus),

@@ -88,7 +88,7 @@ def create_vec_env(data_dict, config, n_envs=1, seed=42, mode="train"):
         # Create multiple envs
         envs = [make_env(data_dict, config, mode, i, seed) for i in range(n_envs)]
         # Use SubprocVecEnv if possible, else Dummy
-        vec_env = SubprocVecEnv(envs)
+        vec_env = SubprocVecEnv(envs, start_method="spawn")
         print(f"Created {n_envs} parallel environments (SubprocVecEnv).")
     else:
         vec_env = DummyVecEnv([make_env(data_dict, config, mode, 0, seed)])
@@ -172,21 +172,23 @@ def train(args):
     
     model = get_agent(args.algo, vec_env, config, device, tensorboard_log)
 
+    # Init W&B
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    run_name = f"{args.algo}_{timestamp}"
+    try:
+        import wandb
+        wandb.init(
+            project="RLD-Trading",
+            name=run_name,
+            config=config,
+            sync_tensorboard=True
+        )
+    except ImportError:
+        wandb = None
+
     # 4. Callbacks
-    eval_callback = SaveOnBestTrainingRewardCallback(
-        check_freq=10000 // n_envs,
-        log_dir=os.path.join(ROOT_DIR, "logs"),
-        verbose=1
-    )
-    tb_callback = TensorboardCallback()
-    
-    checkpoint_callback = CheckpointCallback(
-        save_freq=50000 // n_envs,
-        save_path=os.path.join(ROOT_DIR, "models", "checkpoints"),
-        name_prefix=f"{args.algo.lower()}_model"
-    )
-    
-    callbacks = [eval_callback, tb_callback, checkpoint_callback]
+    from training.callbacks import get_callbacks
+    callbacks = get_callbacks(algo=args.algo, run_name=run_name, config=config)
 
     # 5. Train
     total_timesteps = args.steps or config["training"].get("total_timesteps", 1_000_000)
@@ -204,6 +206,13 @@ def train(args):
     model.save(save_path)
     print(f"Model saved to {save_path}.zip")
     
+    try:
+        import wandb
+        if wandb.run is not None:
+            wandb.finish()
+    except ImportError:
+        pass
+        
     vec_env.close()
 
     # 7. Visualization (optional)
