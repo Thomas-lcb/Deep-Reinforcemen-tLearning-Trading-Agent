@@ -1,6 +1,6 @@
 training:
   total_timesteps: 2000000
-  n_envs: 4  # Reduced to 4 parallel environments to lower RAM/GPU footprint
+  n_envs: 1  # Limité à 1 environnement parallèle pour ne pas saturer les 2 Go de VRAM avec les buffers d'observations
   
   domain_randomization:
     enabled: true
@@ -10,8 +10,8 @@ training:
   # SAC Hyperparameters
   sac:
     learning_rate: "linear_0.0007"   # Linear decay from 7e-4 → 0
-    buffer_size: 300000              # Larger replay buffer for better sample diversity
-    batch_size: 256
+    buffer_size: 300000              # Maintien d'un grand buffer dans la RAM (CPU) pour la diversité
+    batch_size: 64                   # Crucial : Réduit à 64 pour que les calculs de gradients du gros réseau tiennent dans 2Go de VRAM
     gamma: 0.99
     tau: 0.005
     train_freq: 1
@@ -22,19 +22,19 @@ training:
       net_arch: [1024, 1024, 512]    # Deeper network for complex market patterns
     
   ppo:
-    learning_rate: "linear_0.0007"
-    n_steps: 4096                    # Reduced from 8192 to lower RAM rollout buffer footprint
-    batch_size: 512                  # Reduced from 1024 for lighter GPU batches
+    learning_rate: 0.0003            # Constant learning rate for stability
+    n_steps: 2048                    # Réduit légèrement pour éviter de faire exploser la RAM lors de la collecte avec ce gros réseau
+    batch_size: 128                  # Reduced to fit 2Go VRAM with larger lookback window (60)
     n_epochs: 10
     gamma: 0.99
     gae_lambda: 0.95
     clip_range: 0.2
     ent_coef: 0.01
     policy_kwargs:
-      net_arch: [512, 512, 256]      # Slightly reduced network to save memory while keeping it expressive
+      net_arch: [256, 256]           # Medium-sized network to prevent overfitting on 1m noise
 
 data:
-  lookback_window: 30
+  lookback_window: 60               # 60 candles at 1m = 1h of context
   train_ratio: 0.70
   val_ratio: 0.15
   test_ratio: 0.15
@@ -43,17 +43,8 @@ market:
   exchange: binance
   pairs:
     - BTC/USDT
-    - ETH/USDT
-    - SOL/USDT
-    - BNB/USDT
-    - XRP/USDT
-    - ADA/USDT
-    - DOGE/USDT
-    - DOT/USDT
-    - MATIC/USDT
-    - LTC/USDT
-  timeframe: 1h
-  history_years: 5
+  timeframe: 1m
+  history_years: 1
 
 fees:
   maker: 0.001
@@ -80,8 +71,8 @@ observation:
   
   multi_timeframe:
     enabled: true
-    source_tf: "1h"
-    target_tfs: ["4h", "1d", "1w"]   # Added weekly timeframe for macro trend
+    source_tf: "1m"
+    target_tfs: ["5m", "15m", "1h"]  # Adjusted for 1m base timeframe
     features: ["rsi", "ema_200_direction", "atr"]
 
   sentiment:

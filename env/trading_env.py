@@ -172,7 +172,7 @@ class CryptoTradingEnv(gym.Env):
             self.fee_rate = self.np_random.uniform(*self.dr_fee_range)
 
             # Randomize starting position in data
-            max_start = max(0, self.n_steps - self.lookback_window - 500)
+            max_start = max(0, self.n_steps - self.lookback_window - 2000)
             if max_start > self.lookback_window:
                 self.current_step = self.np_random.integers(
                     self.lookback_window, max_start

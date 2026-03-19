@@ -15,6 +15,7 @@ import argparse
 import yaml
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+from stable_baselines3.common.monitor import Monitor
 from env.trading_env import CryptoTradingEnv
 from training.callbacks import get_callbacks
 
@@ -28,22 +29,23 @@ except ImportError:
 
 
 LEVEL_DESCRIPTIONS = {
-    1: "Bases du trading (BTC/ETH, 0% frais)",
-    2: "Contraintes réelles (6 paires, frais Binance 0.1%)",
-    3: "Résilience (10 paires, Domain Randomization)",
+    1: "Bases du trading (BTC/USDT, 0% frais)",
+    2: "Contraintes réelles (BTC/USDT, frais Binance 0.1%)",
+    3: "Résilience (BTC/USDT, Domain Randomization)",
 }
 
 
 def set_curriculum_level(config: dict, level: int):
     """
     Modifie le config global pour correspondre au niveau de difficulté.
+    Phase 4: Single pair (BTC/USDT) — difficulty via fees + domain randomization.
     Retourne la configuration modifiée.
     """
     cfg = copy.deepcopy(config)
     
     if level == 1:
         print(f"💡 Niveau 1 : {LEVEL_DESCRIPTIONS[1]}")
-        cfg["market"]["pairs"] = ["BTC/USDT", "ETH/USDT"]
+        cfg["market"]["pairs"] = ["BTC/USDT"]
         cfg["fees"]["maker"] = 0.0
         cfg["fees"]["taker"] = 0.0
         cfg["training"]["domain_randomization"]["enabled"] = False
@@ -51,7 +53,7 @@ def set_curriculum_level(config: dict, level: int):
 
     elif level == 2:
         print(f"💡 Niveau 2 : {LEVEL_DESCRIPTIONS[2]}")
-        cfg["market"]["pairs"] = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "ADA/USDT", "XRP/USDT"]
+        cfg["market"]["pairs"] = ["BTC/USDT"]
         cfg["fees"]["maker"] = 0.001
         cfg["fees"]["taker"] = 0.001
         cfg["training"]["domain_randomization"]["enabled"] = False
@@ -59,6 +61,7 @@ def set_curriculum_level(config: dict, level: int):
 
     elif level == 3:
         print(f"💡 Niveau 3 : {LEVEL_DESCRIPTIONS[3]}")
+        cfg["market"]["pairs"] = ["BTC/USDT"]
         cfg["fees"]["maker"] = 0.001
         cfg["fees"]["taker"] = 0.001
         cfg["training"]["domain_randomization"]["enabled"] = True
@@ -98,11 +101,18 @@ def load_data(config: dict) -> dict:
     return dfs
 
 
-def make_env(dfs, config, rank, seed=0):
-    """Fonction utilitaire pour créer les environnements parallèles."""
+def make_env(dfs, config, rank, run_name, seed=0):
+    """Fonction utilitaire pour créer les environnements parallèles avec Monitor."""
     def _init():
         env = CryptoTradingEnv(df=dfs, config=config, mode="train")
         env.reset(seed=seed + rank)
+        
+        # Le callback lit les fichiers *monitor.csv dans logs/monitor_run_name/
+        log_dir = os.path.join(ROOT_DIR, "logs", f"monitor_{run_name}")
+        os.makedirs(log_dir, exist_ok=True)
+        # Chaque env parallèle aura son propre fichier
+        env = Monitor(env, os.path.join(log_dir, str(rank)))
+        
         return env
     return _init
 
@@ -176,7 +186,7 @@ def main():
         dfs = load_data(curriculum_cfg)
         
         # 4. Créer les environnements vectorisés
-        env = SubprocVecEnv([make_env(dfs, curriculum_cfg, i) for i in range(n_envs)], start_method="spawn")
+        env = SubprocVecEnv([make_env(dfs, curriculum_cfg, i, run_name) for i in range(n_envs)], start_method="spawn")
 
         
         # 5. Créer ou charger le modèle
@@ -212,6 +222,7 @@ def main():
             tb_log_name=run_name,
             callback=callbacks,
             reset_num_timesteps=False,
+            progress_bar=True,  # Réactivation de la barre de progression demandée par l'utilisateur
         )
         
         # 7. Sauvegarde pour le prochain niveau

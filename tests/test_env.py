@@ -5,42 +5,75 @@ tests/test_env.py — Tests unitaires de l'environnement de trading.
 import pytest
 import numpy as np
 import pandas as pd
+import yaml
+import os
 
 from env.trading_env import CryptoTradingEnv
 
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONFIG_PATH = os.path.join(ROOT_DIR, "config", "config.yaml")
 
 @pytest.fixture
-def synthetic_df():
-    """Create a synthetic OHLCV DataFrame with indicators."""
+def config():
+    with open(CONFIG_PATH, "r") as f:
+        return yaml.safe_load(f)
+
+@pytest.fixture
+def synthetic_df(config):
+    """Create a synthetic OHLCV DataFrame fully processed for Phase 4."""
     np.random.seed(42)
-    n = 500
-    dates = pd.date_range("2024-01-01", periods=n, freq="1h", tz="UTC")
-    close = 40000 + np.cumsum(np.random.randn(n) * 50)
+    n = 2000
+    dates = pd.date_range("2024-01-01", periods=n, freq="1min", tz="UTC")
+    close = 40000 + np.cumsum(np.random.randn(n) * 10)
     df = pd.DataFrame(
         {
-            "open": close + np.random.randn(n) * 20,
-            "high": close + abs(np.random.randn(n) * 80),
-            "low": close - abs(np.random.randn(n) * 80),
+            "open": close + np.random.randn(n) * 5,
+            "high": close + abs(np.random.randn(n) * 20),
+            "low": close - abs(np.random.randn(n) * 20),
             "close": close,
-            "volume": np.random.uniform(100, 1000, n),
+            "volume": np.random.uniform(10, 500, n),
         },
         index=dates,
     )
+    
     from features.indicators import add_all_indicators
-    df = add_all_indicators(df)
-    df = df.dropna()
-    return df
+    from features.multi_timeframe import add_multi_timeframe_features
+    from features.normalizer import rolling_normalize
 
+    df = add_all_indicators(df, config.get("observation", {}))
+    
+    mtf_config = config.get("observation", {}).get("multi_timeframe", {})
+    if mtf_config.get("enabled", False):
+        df = add_multi_timeframe_features(
+            df, source_tf="1m", config=mtf_config
+        )
+
+    # ffill for mtf
+    mtf_cols = [c for c in df.columns if c.startswith("mtf_")]
+    if mtf_cols:
+        df[mtf_cols] = df[mtf_cols].ffill().fillna(0.0)
+    df = df.dropna()
+
+    raw_cols = df[["open", "high", "low", "close"]].copy()
+    lookback = config.get("data", {}).get("lookback_window", 60)
+    df_norm = rolling_normalize(df, window=lookback)
+
+    for col in raw_cols.columns:
+        df_norm[f"raw_{col}"] = raw_cols[col]
+
+    df_norm = df_norm.dropna()
+    return df_norm
 
 @pytest.fixture
-def env(synthetic_df):
-    """Create a trading environment."""
-    return CryptoTradingEnv(synthetic_df, mode="test")
+def env(synthetic_df, config):
+    """Create a trading environment with Phase 4 config."""
+    return CryptoTradingEnv(synthetic_df, config=config, mode="test")
 
 
 class TestEnvCreation:
     def test_spaces(self, env):
-        assert env.observation_space.shape == (30, env.n_features + 4)
+        lookback = env.lookback_window
+        assert env.observation_space.shape == (lookback, env.n_features + 4)
         assert env.action_space.shape == (1,)
 
     def test_reset(self, env):

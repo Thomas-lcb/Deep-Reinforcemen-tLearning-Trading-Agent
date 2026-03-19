@@ -9,7 +9,7 @@ cf. agent.md §5.A.3
 
 import pandas as pd
 import numpy as np
-import pandas_ta as ta
+import ta
 
 
 def add_multi_timeframe_features(
@@ -39,6 +39,8 @@ def add_multi_timeframe_features(
 
     # Mapping from config timeframe strings to pandas resample rules
     tf_to_resample = {
+        "5m": "5min",
+        "15m": "15min",
         "4h": "4h",
         "1d": "1D",
         "1D": "1D",
@@ -105,40 +107,29 @@ def _compute_tf_features(
         if feat in ("ema_200_direction", "ema200_dir", "ema200_dist"):
             # Use shorter EMA for small datasets (e.g. weekly candles)
             ema_len = 200 if len(df) >= 250 else 50
-            ema = ta.ema(df["close"], length=ema_len)
-            if ema is not None:
-                # +1 if price above EMA, -1 otherwise
-                result[f"{prefix}ema200_dir"] = np.where(
-                    df["close"] > ema, 1.0, -1.0
-                )
-                # Distance from EMA as a ratio
-                result[f"{prefix}ema200_dist"] = (df["close"] - ema) / (ema + 1e-10)
+            ema = ta.trend.EMAIndicator(close=df["close"], window=ema_len).ema_indicator()
+            # +1 if price above EMA, -1 otherwise
+            result[f"{prefix}ema200_dir"] = np.where(df["close"] > ema, 1.0, -1.0)
+            # Distance from EMA as a ratio
+            result[f"{prefix}ema200_dist"] = (df["close"] - ema) / (ema + 1e-10)
 
         elif feat == "rsi":
-            rsi = ta.rsi(df["close"], length=14)
-            if rsi is not None:
-                # Normalize RSI to [-1, 1] range (originally 0-100)
-                result[f"{prefix}rsi"] = (rsi - 50) / 50
+            rsi = ta.momentum.RSIIndicator(close=df["close"], window=14).rsi()
+            # Normalize RSI to [-1, 1] range (originally 0-100)
+            result[f"{prefix}rsi"] = (rsi - 50) / 50
 
         elif feat in ("atr", "atr_pct"):
-            atr = ta.atr(df["high"], df["low"], df["close"], length=14)
-            if atr is not None:
-                # ATR as percentage of close price
-                result[f"{prefix}atr_pct"] = atr / (df["close"] + 1e-10)
+            atr = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"], window=14).average_true_range()
+            # ATR as percentage of close price
+            result[f"{prefix}atr_pct"] = atr / (df["close"] + 1e-10)
 
         elif feat == "macd_hist":
-            macd = ta.macd(df["close"])
-            if macd is not None:
-                hist_col = [c for c in macd.columns if "MACDh" in c or "MACD_12_26_9" in c]
-                if hist_col:
-                    result[f"{prefix}macd_hist"] = macd[hist_col[0]]
+            macd = ta.trend.MACD(close=df["close"])
+            result[f"{prefix}macd_hist"] = macd.macd_diff()
 
         elif feat == "trend_strength":
-            ema = ta.ema(df["close"], length=200)
-            atr = ta.atr(df["high"], df["low"], df["close"], length=14)
-            if ema is not None and atr is not None:
-                result[f"{prefix}trend_str"] = (
-                    (df["close"] - ema).abs() / (atr + 1e-10)
-                )
+            ema = ta.trend.EMAIndicator(close=df["close"], window=200).ema_indicator()
+            atr = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"], window=14).average_true_range()
+            result[f"{prefix}trend_str"] = (df["close"] - ema).abs() / (atr + 1e-10)
 
     return result

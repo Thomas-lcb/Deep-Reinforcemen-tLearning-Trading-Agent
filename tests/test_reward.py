@@ -13,7 +13,7 @@ def reward_calc():
     config = {
         "fee_penalty_weight": 1.0,
         "volatility_penalty": 0.1,
-        "drawdown_penalty": {"enabled": True, "threshold_pct": 0.05, "penalty_factor": 2.0},
+        "drawdown_penalty": {"enabled": True, "threshold_pct": 0.03, "penalty_factor": 5.0},
         "sharpe_bonus": {"enabled": True, "window": 100, "weight": 0.01},
         "trend_alignment_bonus": {"enabled": True, "weight": 0.005},
     }
@@ -57,7 +57,7 @@ class TestDrawdownPenalty:
         # Then drop below threshold
         result = reward_calc.calculate(10000, 11000, 0.0, 0.0, 0.0)
         assert result["drawdown_penalty"] < 0
-        assert result["drawdown_pct"] > 0.05
+        assert result["drawdown_pct"] > 0.03
 
 
 class TestTrendBonus:

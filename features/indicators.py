@@ -11,7 +11,7 @@ cf. agent.md §5.A.2
 """
 
 import pandas as pd
-import pandas_ta as ta
+import ta
 
 
 def add_all_indicators(df: pd.DataFrame, obs_config: dict | None = None) -> pd.DataFrame:
@@ -59,7 +59,7 @@ def _add_ema(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """Exponential Moving Averages."""
     periods = cfg.get("ema_periods", [50, 200])
     for p in periods:
-        df[f"ema_{p}"] = ta.ema(df["close"], length=p)
+        df[f"ema_{p}"] = ta.trend.EMAIndicator(close=df["close"], window=p).ema_indicator()
     # Price relative to EMAs (useful feature)
     for p in periods:
         df[f"close_vs_ema_{p}"] = (df["close"] - df[f"ema_{p}"]) / df[f"ema_{p}"]
@@ -72,30 +72,31 @@ def _add_macd(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     slow = cfg.get("macd_slow", 26)
     signal = cfg.get("macd_signal", 9)
 
-    macd = ta.macd(df["close"], fast=fast, slow=slow, signal=signal)
-    if macd is not None:
-        df = pd.concat([df, macd], axis=1)
+    macd = ta.trend.MACD(close=df["close"], window_fast=fast, window_slow=slow, window_sign=signal)
+    df[f"MACD_{fast}_{slow}_{signal}"] = macd.macd()
+    df[f"MACDh_{fast}_{slow}_{signal}"] = macd.macd_diff()
+    df[f"MACDs_{fast}_{slow}_{signal}"] = macd.macd_signal()
     return df
 
 
 def _add_rsi(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """Relative Strength Index."""
     period = cfg.get("rsi_period", 14)
-    df[f"rsi_{period}"] = ta.rsi(df["close"], length=period)
+    df[f"rsi_{period}"] = ta.momentum.RSIIndicator(close=df["close"], window=period).rsi()
     return df
 
 
 def _add_cci(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """Commodity Channel Index."""
     period = cfg.get("cci_period", 20)
-    df[f"cci_{period}"] = ta.cci(df["high"], df["low"], df["close"], length=period)
+    df[f"cci_{period}"] = ta.trend.CCIIndicator(high=df["high"], low=df["low"], close=df["close"], window=period).cci()
     return df
 
 
 def _add_atr(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     """Average True Range (volatility)."""
     period = cfg.get("atr_period", 14)
-    df[f"atr_{period}"] = ta.atr(df["high"], df["low"], df["close"], length=period)
+    df[f"atr_{period}"] = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"], window=period).average_true_range()
     # Normalize ATR by close price for comparability
     df[f"atr_{period}_pct"] = df[f"atr_{period}"] / df["close"]
     return df
@@ -106,22 +107,17 @@ def _add_bollinger(df: pd.DataFrame, cfg: dict) -> pd.DataFrame:
     period = cfg.get("bollinger_period", 20)
     std = cfg.get("bollinger_std", 2.0)
 
-    bbands = ta.bbands(df["close"], length=period, std=std)
-    if bbands is not None:
-        df = pd.concat([df, bbands], axis=1)
-        # Bollinger %B — position of price within bands
-        upper_col = [c for c in bbands.columns if "BBU" in c]
-        lower_col = [c for c in bbands.columns if "BBL" in c]
-        if upper_col and lower_col:
-            df["bb_pct_b"] = (df["close"] - df[lower_col[0]]) / (
-                df[upper_col[0]] - df[lower_col[0]] + 1e-10
-            )
+    bb = ta.volatility.BollingerBands(close=df["close"], window=period, window_dev=std)
+    df[f"BBL_{period}_{std}"] = bb.bollinger_lband()
+    df[f"BBM_{period}_{std}"] = bb.bollinger_mavg()
+    df[f"BBU_{period}_{std}"] = bb.bollinger_hband()
+    df["bb_pct_b"] = bb.bollinger_pband()
     return df
 
 
 def _add_obv(df: pd.DataFrame) -> pd.DataFrame:
     """On-Balance Volume."""
-    df["obv"] = ta.obv(df["close"], df["volume"])
+    df["obv"] = ta.volume.OnBalanceVolumeIndicator(close=df["close"], volume=df["volume"]).on_balance_volume()
     # Normalize OBV with its own rolling mean for scale invariance
     df["obv_normalized"] = df["obv"] / (df["obv"].rolling(50).mean() + 1e-10)
     return df
