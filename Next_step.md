@@ -58,6 +58,7 @@
 - [x] 3b.9 — `n_envs` 1→3, `batch_size` PPO 128→256, `n_steps` 2048→4096 pour mieux exploiter le CPU/GPU dispo une fois 3b.8 réglé. Mesuré : GPU 17.6%→21% moyenne (63%→69% pic), CPU 13-15% sur 8 cœurs (pas de saturation), fps 385→1104 it/s.
 - [ ] 3b.6 — Retrouver ou reconstruire le code `fee_annealing`/`curriculum_v2` (run crashé du 6 avril, jamais committé) et auditer sa reward avant de le relancer
 - [ ] 3b.7 — Auditer `fee_penalty_weight`, `sharpe_bonus`, `unrealized_pnl_weight` avec la même rigueur que `drawdown_penalty` (simulation + test de non-régression)
+- [x] 3b.10 — Fix `pnl_pct` jamais renseigné dans `interpret_action()`/`trading_env.py::step()` → les stats `trading/win_rate`, `avg_win`, `avg_loss`, `profit_factor` n'ont jamais été loggées sur aucun run de l'historique (filtre silencieusement vide). Corrigé + testé (`tests/test_env.py::TestTradePnl`). **Résultat révélé sur le run de vérification (W&B `22zm10uh`)** : ~11 800 trades sur 30k steps (0% frais en L1 = aucun coût à l'overtrading), `win_rate` ~48-52% (quasi pile ou face), `profit_factor` ~0.89-1.11. Le portefeuille proche de l'équilibre observé en 3b.5 n'est donc PAS un comportement défensif appris — c'est du trading fréquent sans edge qui s'annule statistiquement. Pertinent pour 3b.7 : l'agent n'a aucune raison actuelle (en L1, frais nuls) de limiter sa fréquence de trade.
 
 ---
 
