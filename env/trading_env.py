@@ -266,6 +266,12 @@ class CryptoTradingEnv(gym.Env):
             self._log_trade(trade, current_price)
 
         elif trade["type"] == "sell" and trade["amount_asset"] > 0:
+            # Realized P&L of this round-trip, relative to the cost basis.
+            # Used by training/callbacks.py to compute trading/win_rate,
+            # trading/avg_win, trading/avg_loss and trading/profit_factor.
+            if self.entry_price > 0:
+                trade["pnl_pct"] = (current_price - self.entry_price) / self.entry_price
+
             self.balance_usdt += trade["amount_usdt"]  # net of fees
             self.balance_asset -= trade["amount_asset"]
 

@@ -122,6 +122,42 @@ class TestActions:
         assert env.balance_usdt < initial
 
 
+class TestTradePnl:
+    """
+    Regression tests for trade['pnl_pct'] — required by
+    training/callbacks.py's TensorboardCallback to compute
+    trading/win_rate, trading/avg_win, trading/avg_loss and
+    trading/profit_factor. Without it, that callback silently never logs
+    anything (its `if 'pnl_pct' in t` filter always drops every trade),
+    which happened on every training run to date without raising an error.
+    """
+
+    def test_buy_has_no_pnl_pct(self, env):
+        env.reset(seed=0)
+        _, _, _, _, info = env.step(np.array([0.8]))
+        assert info["trade"]["type"] == "buy"
+        assert "pnl_pct" not in info["trade"]
+
+    def test_sell_reports_realized_pnl_pct(self, env):
+        env.max_position_pct = 1.0
+        env.reset(seed=0)
+        env.step(np.array([1.0]))  # Buy all
+        entry_price = env.entry_price
+        sell_price = env.close_prices[env.current_step]
+        expected_pnl_pct = (sell_price - entry_price) / entry_price
+
+        _, _, _, _, info = env.step(np.array([-1.0]))  # Sell all
+
+        assert info["trade"]["type"] == "sell"
+        assert "pnl_pct" in info["trade"]
+        assert info["trade"]["pnl_pct"] == pytest.approx(expected_pnl_pct, rel=1e-6)
+
+    def test_hold_has_no_pnl_pct(self, env):
+        env.reset(seed=0)
+        _, _, _, _, info = env.step(np.array([0.0]))
+        assert "pnl_pct" not in info["trade"]
+
+
 class TestReward:
     def test_hold_reward_near_zero(self, env):
         env.reset(seed=0)
