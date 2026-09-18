@@ -64,7 +64,11 @@ fees:
   taker: 0.001
 
 action:
-  dead_zone: 0.05
+  dead_zone: 0.1  # Doublé (était 0.05). Avec train/std maintenu sain par target_kl (~1.0,
+                   # ne s'effondre plus), la quasi-totalité des actions échantillonnées tombait
+                   # hors d'une zone "hold" aussi étroite : ~11 800-12 000 trades par rollout de
+                   # 12 288 steps mesurés en L1/L2/L3 (~97% des steps), qu'il y ait des frais ou
+                   # non. Cf. README Phase 5.D (déjà anticipé).
   cooldown_steps: 0
   max_position_pct: 0.25            # Max 25% of capital per single trade
 
@@ -92,7 +96,15 @@ observation:
     fear_and_greed: true
 
 reward:
-  fee_penalty_weight: 1.0
+  fee_penalty_weight: 20.0          # x20 (était 1.0). À poids=1.0, la pénalité pour un trade
+                                     # pleine puissance (25% du capital, frais 0.1%) valait
+                                     # ~-0.000125 brut — à peine le double du coût réel déjà
+                                     # reflété dans log_return, et complètement noyé par le bruit
+                                     # normal des variations de prix (un simple +1% vaut 0.01,
+                                     # ~80x plus grand). Absolument aucune pression pour réduire
+                                     # la fréquence de trade (~97% des steps en L1/L2/L3 mesuré).
+                                     # x20 rapproche l'ordre de grandeur de celui des mouvements
+                                     # de prix typiques — à valider empiriquement, pas une science exacte.
   volatility_penalty: 0.1
   unrealized_pnl_weight: 0.1        # Reward agent for holding winning positions
   reward_scale: 100.0               # Scale rewards to avoid very large cumulative values
