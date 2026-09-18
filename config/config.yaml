@@ -1,6 +1,9 @@
 training:
   total_timesteps: 2000000
-  n_envs: 1  # Limité à 1 environnement parallèle pour ne pas saturer les 2 Go de VRAM avec les buffers d'observations
+  n_envs: 3  # 3 environnements en parallèle (+1 process principal = 4, un par cœur physique).
+             # Mesuré : GPU à 0.58% d'utilisation moyenne avant le fix de perf de l'env (goulot
+             # CPU), 17.6% après avec n_envs=1 — encore beaucoup de marge VRAM (40% max sur 2 Go).
+             # Monter au-delà de 3 risquerait de sursouscrire les 4 cœurs physiques.
 
   max_episode_steps: 20000  # ~14 jours de bougies 1m. Sans ça, un épisode dure ~367k steps
                              # sur le dataset 1 an actuel (plus long qu'un niveau entier de
@@ -28,8 +31,9 @@ training:
     
   ppo:
     learning_rate: 0.0003            # Constant learning rate for stability
-    n_steps: 2048                    # Réduit légèrement pour éviter de faire exploser la RAM lors de la collecte avec ce gros réseau
-    batch_size: 128                  # Reduced to fit 2Go VRAM with larger lookback window (60)
+    n_steps: 4096                    # Doublé (était 2048) : la VRAM n'était utilisée qu'à 40% max,
+                                      # de la marge pour des batches de gradient plus gros par mise à jour
+    batch_size: 256                  # Doublé (était 128), toujours dans les 2 Go de VRAM disponibles
     n_epochs: 10
     gamma: 0.99
     gae_lambda: 0.95
