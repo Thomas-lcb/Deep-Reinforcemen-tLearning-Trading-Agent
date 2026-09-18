@@ -39,6 +39,10 @@ training:
     gae_lambda: 0.95
     clip_range: 0.2
     ent_coef: 0.01
+    target_kl: 0.02                  # Stoppe une époque de mise à jour dès que la divergence KL
+                                      # moyenne dépasse ce seuil. Sans ça, rien n'empêchait des mises
+                                      # à jour catastrophiques : approx_kl a atteint 0.55-0.61 sur les
+                                      # runs de validation (une valeur saine tourne autour de 0.01-0.03).
     policy_kwargs:
       net_arch: [256, 256]           # Medium-sized network to prevent overfitting on 1m noise
 

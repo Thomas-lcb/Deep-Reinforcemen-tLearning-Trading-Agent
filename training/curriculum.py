@@ -222,6 +222,7 @@ def main():
                 gae_lambda=ppo_cfg["gae_lambda"],
                 clip_range=ppo_cfg["clip_range"],
                 ent_coef=ppo_cfg["ent_coef"],
+                target_kl=ppo_cfg.get("target_kl"),
                 policy_kwargs=ppo_cfg.get("policy_kwargs"),
                 device=args.device,
                 tensorboard_log=os.path.join(ROOT_DIR, "logs", "tensorboard"),
