@@ -120,6 +120,12 @@ def make_env(dfs, config, rank, run_name, seed=0):
 def main():
     parser = argparse.ArgumentParser(description="Run PPO Curriculum Learning")
     parser.add_argument("--device", type=str, default="cuda", help="cuda or cpu")
+    parser.add_argument("--level", type=int, default=None, choices=[1, 2, 3],
+                         help="Run only this single level instead of the full 1→3 curriculum "
+                              "(useful for quick validation runs).")
+    parser.add_argument("--timesteps", type=int, default=None,
+                         help="Override total_timesteps for the run(s) (useful for short "
+                              "validation runs instead of the full 500k/1M/1.5M schedule).")
     args = parser.parse_args()
 
     # Load base config
@@ -134,25 +140,37 @@ def main():
     model = None
     previous_model_path = None
 
-    for level in range(1, 4):
+    levels_to_run = [args.level] if args.level is not None else range(1, 4)
+    if args.level is not None and args.level > 1:
+        previous_model_path = os.path.join(ROOT_DIR, "models", "saved", f"ppo_curriculum_l{args.level - 1}")
+        if not os.path.exists(previous_model_path + ".zip"):
+            raise FileNotFoundError(
+                f"--level {args.level} requires a previous checkpoint at {previous_model_path}.zip "
+                f"(run level {args.level - 1} first, or omit --level to run the full curriculum)."
+            )
+
+    for level in levels_to_run:
         print(f"\n==========================================")
         print(f"🚀 LANCEMENT DU CURRICULUM NIVEAU {level}")
         print(f"==========================================")
 
         # 1. Configurer le niveau
         curriculum_cfg = set_curriculum_level(base_config, level)
-        timesteps = curriculum_cfg["training"]["total_timesteps"]
+        timesteps = args.timesteps if args.timesteps is not None else curriculum_cfg["training"]["total_timesteps"]
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         run_name = f"PPO_Curriculum_L{level}_{timestamp}"
-        
+
         # 2. Initialiser W&B pour ce niveau
         if wandb is not None:
+            tags = ["curriculum", f"level_{level}", "PPO"]
+            if args.timesteps is not None:
+                tags.append("quick_validation")
             wandb.init(
                 project="RLD-Trading",
                 name=run_name,
                 group="curriculum_learning",
-                tags=["curriculum", f"level_{level}", "PPO"],
+                tags=tags,
                 config={
                     "algo": "PPO",
                     "level": level,

@@ -46,6 +46,19 @@
 
 ---
 
+## Phase 3-bis : Correctifs issus de l'analyse forensique W&B (Sept 2026)
+*cf. REPO_OVERVIEW.md §4 pour le détail chiffré*
+
+- [x] 3b.1 — Fixer `drawdown_penalty` (`env/reward.py`) : ne pénaliser que l'aggravation du drawdown, pas son maintien permanent (tests de non-régression dans `tests/test_reward.py`)
+- [ ] 3b.2 — Ajouter `target_kl` (~0.02–0.03) au PPO dans `training/curriculum.py` — `approx_kl` a atteint 82.8 en L3, aucun garde-fou actuel
+- [ ] 3b.3 — Activer la randomisation du point de départ dès L1/L2 (pas seulement L3) pour éviter de rejouer la même tranche de données à chaque épisode
+- [ ] 3b.4 — Réintroduire une décroissance du LR PPO (ou reset du scheduler) lors du transfert de poids entre niveaux de curriculum
+- [ ] 3b.5 — Lancer un run de validation court (Niveau 1, ~50-100k steps) pour vérifier la signature attendue du fix 3b.1 (`train/std` stable, `ep_rew_mean` non extrême) avant d'enchaîner 3b.2/3b.3/3b.4 un par un
+- [ ] 3b.6 — Retrouver ou reconstruire le code `fee_annealing`/`curriculum_v2` (run crashé du 6 avril, jamais committé) et auditer sa reward avant de le relancer
+- [ ] 3b.7 — Auditer `fee_penalty_weight`, `sharpe_bonus`, `unrealized_pnl_weight` avec la même rigueur que `drawdown_penalty` (simulation + test de non-régression)
+
+---
+
 ## Phase 4 : Backtesting & Visualisation
 *cf. agent.md §6 Phase 4*
 

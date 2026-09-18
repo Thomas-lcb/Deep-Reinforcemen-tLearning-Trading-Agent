@@ -59,6 +59,40 @@ class TestDrawdownPenalty:
         assert result["drawdown_penalty"] < 0
         assert result["drawdown_pct"] > 0.03
 
+    def test_no_permanent_penalty_while_flat_after_drop(self, reward_calc):
+        """
+        Regression test: once the drawdown stops worsening, an agent that
+        holds perfectly flat (no trade, NAV unchanged) must stop paying the
+        drawdown penalty. Before the fix, this penalty was re-applied every
+        single step for the rest of the episode based on the stale historical
+        peak, dwarfing every other reward term and making passivity the
+        reward-optimal policy.
+        """
+        # Establish a peak, then a single drop past the threshold.
+        reward_calc.calculate(12000, 10000, 0.0, 0.0, 0.0)
+        first_drop = reward_calc.calculate(9000, 12000, 0.0, 0.0, 0.0)
+        assert first_drop["drawdown_penalty"] < 0
+
+        # Agent goes flat: NAV no longer moves, drawdown depth is unchanged.
+        for _ in range(5000):
+            result = reward_calc.calculate(9000, 9000, 0.0, 0.0, 0.0)
+
+        assert result["drawdown_penalty"] == pytest.approx(0.0)
+
+    def test_penalty_scales_with_incremental_worsening_only(self, reward_calc):
+        """A deeper new low must still be penalized (only the increment)."""
+        reward_calc.calculate(12000, 10000, 0.0, 0.0, 0.0)
+        reward_calc.calculate(9000, 12000, 0.0, 0.0, 0.0)  # -25% drawdown
+
+        # Drawdown worsens further to -40%: should be penalized again.
+        worse = reward_calc.calculate(7200, 9000, 0.0, 0.0, 0.0)
+        assert worse["drawdown_penalty"] < 0
+
+        # Recovering slightly (still below peak, but less deep) must not
+        # incur any further penalty.
+        better = reward_calc.calculate(8000, 7200, 0.0, 0.0, 0.0)
+        assert better["drawdown_penalty"] == pytest.approx(0.0)
+
 
 class TestTrendBonus:
     def test_aligned(self, reward_calc):

@@ -57,6 +57,7 @@ class RewardCalculator:
         self.portfolio_values = deque(maxlen=self.sharpe_window + 1)
         self.returns_history = deque(maxlen=self.sharpe_window)
         self.peak_value = 0.0
+        self.max_drawdown_seen = 0.0
 
     def reset(self, initial_value: float):
         """Reset the reward calculator at the start of a new episode."""
@@ -64,6 +65,7 @@ class RewardCalculator:
         self.returns_history.clear()
         self.portfolio_values.append(initial_value)
         self.peak_value = initial_value
+        self.max_drawdown_seen = 0.0
 
     def calculate(
         self,
@@ -109,13 +111,21 @@ class RewardCalculator:
         vol_penalty = -self.volatility_penalty * current_volatility
 
         # --- 4. Drawdown penalty ---
+        # Only the *worsening* of the drawdown is penalized (i.e. a new
+        # episode-worst drawdown depth). Once the agent stops digging deeper,
+        # the penalty stops too — otherwise a single old peak permanently
+        # taxes every remaining step of the episode regardless of behavior,
+        # which swamps every other reward term and makes passivity (near-zero
+        # action std) the reward-optimal policy instead of good trading.
         drawdown_penalty = 0.0
         if self.dd_enabled:
             self.peak_value = max(self.peak_value, current_value)
             if self.peak_value > 0:
                 drawdown = (self.peak_value - current_value) / self.peak_value
                 if drawdown > self.dd_threshold:
-                    drawdown_penalty = -self.dd_factor * (drawdown - self.dd_threshold)
+                    incremental_drawdown = max(0.0, drawdown - self.max_drawdown_seen)
+                    drawdown_penalty = -self.dd_factor * incremental_drawdown
+                self.max_drawdown_seen = max(self.max_drawdown_seen, drawdown)
 
         # --- 5. Rolling Sharpe bonus ---
         sharpe_bonus = 0.0

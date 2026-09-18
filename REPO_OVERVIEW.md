@@ -60,3 +60,26 @@ Pour contrer cette "anxiété d'apprentissage" constatée de PPO, nous avons bou
    Grâce au paramétrage du fichier config, on a scindé le CPU en 6 "Mondes Gym" parallèles simultanés (`n_envs`). Cela permet de charger un énorme batch au GPU, qui possède désormais un réseau de neurones très lourd : il est passé de 3 petites couches, à un gigantesque millefeuille `[1024, 1024, 512]`. Plus long à entraîner, mais virtuellement capable de retenir une quantité infinie de contextes d'arbitrage croisés.
 
 > **Et la suite ?** Une fois l'entraînement du Curriculum fini, nous construirons un "Backtester" rigide (Phase 4). C'est là que l'agent affrontera le jeu de données qu'il n'a encore jamais vu ("Test Set"), et nous comparerons ses courbes d'équités avec un banal "Buy & Hold" de Bitcoin !
+
+---
+
+## 🔬 4. Analyse forensique W&B (Sept 2026) — pourquoi le curriculum stagnait
+
+Le dépôt local avait dérivé de GitHub (un commit "Phase 4 — Minute trading" jamais récupéré). Une fois resynchronisé, la lecture directe des runs W&B (`mtlfmp5w`, `pexiuym4`, `wwxxuvxq` — les 3 niveaux du 19 mars — et un run `crashed` du 6 avril taggé `fee_annealing`/`curriculum_v2` dont le code n'a jamais été commité) a montré une dégradation progressive et mesurable :
+
+| Niveau | `train/std` (début→fin) | `approx_kl` (pic) | `clip_fraction` | `ep_rew_mean` |
+|---|---|---|---|---|
+| L1 (0% frais) | 0.99 → 0.26 | 0.61 | jusqu'à 51% | -397 → -146 |
+| L2 (frais 0.1%) | 0.26 → 0.025 | 4.34 | jusqu'à 66% | -146 → -141 |
+| L3 (+ Domain Rand.) | 0.025 → 0.0105 | **27.9** (pic 82.8) | jusqu'à 74% | -141 → -58 |
+
+**Root cause identifiée et corrigée** : `drawdown_penalty` dans `env/reward.py` se réappliquait à *chaque step* tant que la NAV restait sous son plus-haut historique, sans jamais s'éteindre. Preuve par simulation : un pic +20% suivi d'un retour à la normale, puis 20 000 steps totalement immobiles (NAV inchangée, agent irréprochable), coûtait quand même **-220 de reward cumulée**. Ce terme dominait tous les autres (`dd_factor=5.0` vs `sharpe_weight=0.01`) et rendait la passivité totale mathématiquement optimale — ce qui explique l'effondrement de `train/std` observé ci-dessus. **Fix appliqué** : la pénalité ne taxe plus que l'*aggravation* du drawdown (nouveau plus bas de l'épisode), pas son maintien. Tests de non-régression dans `tests/test_reward.py`.
+
+### Pistes restantes, non encore implémentées (par ordre de priorité probable)
+
+1. **`target_kl` absent du PPO** (`training/curriculum.py`) — rien n'arrête une mise à jour de politique même quand `approx_kl` explose (observé jusqu'à 82.8, une valeur saine est ~0.01-0.03). Fix attendu : ajouter `target_kl≈0.02-0.03` à la construction du modèle.
+2. **Pas de randomisation du point de départ en L1/L2** — `domain_randomization` n'est actif qu'en L3, donc l'agent rejoue *exactement* la même tranche de données à chaque épisode en L1/L2 (mémorisation possible plutôt que généralisation), avant de découvrir des points de départ aléatoires seulement au niveau 3 (choc de distribution).
+3. **LR constant (3e-4) sans décroissance**, et pas de reset d'optimiseur/scheduler lors du transfert de poids entre niveaux (`PPO.load` + `reset_num_timesteps=False`) — un changement brutal de régime de frais peut encore provoquer un choc alors que le LR reste au même niveau qu'en fin de niveau précédent.
+4. **Code `fee_annealing`/`curriculum_v2` perdu** — le run crashé du 6 avril montrait un comportement inverse intéressant (`std` stable ~1.0, `approx_kl` sain <0.05) mais une `ep_rew_mean` catastrophique (-8764 à -1149) malgré un portefeuille correct : signe d'un bug de calibration reward dans cette branche jamais committée. À retrouver ou reconstruire avant d'investir plus de temps dessus.
+5. **Bruit intrinsèque du 1-minute BTC** — le README documente déjà que le critique n'extrayait pas de signal exploitable à cette granularité. Même avec une reward saine, l'edge économique net de frais à 1m est peut-être proche de zéro ; la Phase 5 proposée dans le README (passage au 15m) reste la meilleure réponse à ce problème-là si les fixes ci-dessus ne suffisent pas.
+6. **Autres termes de reward non audités avec la même rigueur** (`fee_penalty_weight`, `sharpe_bonus`, `unrealized_pnl_weight`) — seul `drawdown_penalty` a un bug démontré ; les autres mériteraient le même traitement (simulation + test de non-régression) avant d'être considérés fiables.
