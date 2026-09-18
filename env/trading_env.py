@@ -98,6 +98,7 @@ class CryptoTradingEnv(gym.Env):
             if col not in ["timestamp", "date"] and not col.startswith("raw_")
         ]
         self.n_features = len(self._feature_cols)
+        self._build_feature_cache()
 
         # --- Spaces ---
         obs_cfg = config.get("observation", {})
@@ -172,6 +173,7 @@ class CryptoTradingEnv(gym.Env):
             else:
                 self.close_prices = self.df["close"].values
             self.n_steps = len(self.df)
+            self._build_feature_cache()
 
         # Domain randomization: capital & fee rate (risk/cost regime)
         if self.dr_enabled:
@@ -345,6 +347,28 @@ class CryptoTradingEnv(gym.Env):
     # Private helpers
     # ------------------------------------------------------------------
 
+    def _build_feature_cache(self):
+        """
+        Precompute per-step lookups as plain numpy arrays.
+
+        _get_obs()/_get_current_volatility()/_get_trend_direction() run on
+        every single env.step() call. Doing pandas column selection + a
+        DataFrame->numpy conversion of the *entire* dataframe (or a
+        `.iloc[idx]` Series lookup) inside that hot loop is O(dataset size)
+        per step instead of O(1) — on the 1-year/1-minute dataset (~370k
+        rows) this made the environment itself the bottleneck (~16 steps/s,
+        GPU sitting idle waiting on the CPU) instead of the ~250 steps/s
+        seen with the same code on smaller datasets. Call this once per
+        reset() (episode) instead, exactly like `close_prices` already is.
+        """
+        self._feature_matrix = self.df[self._feature_cols].to_numpy(dtype=np.float32)
+
+        atr_cols = [c for c in self._feature_cols if "atr" in c.lower() and "pct" in c.lower()]
+        self._atr_array = self.df[atr_cols[0]].to_numpy(dtype=np.float64) if atr_cols else None
+
+        ema_cols = [c for c in self._feature_cols if "ema200_dir" in c.lower()]
+        self._ema_dir_array = self.df[ema_cols[0]].to_numpy(dtype=np.float64) if ema_cols else None
+
     def _portfolio_value(self) -> float:
         """Calculate the current Net Asset Value."""
         price_idx = min(self.current_step, self.n_steps - 1)
@@ -358,7 +382,7 @@ class CryptoTradingEnv(gym.Env):
         end = self.current_step
 
         # Market data (normalized features)
-        market_data = self.df[self._feature_cols].values[start:end]
+        market_data = self._feature_matrix[start:end]
 
         # Pad if we don't have enough history
         if len(market_data) < self.lookback_window:
@@ -384,10 +408,9 @@ class CryptoTradingEnv(gym.Env):
     def _get_current_volatility(self) -> float:
         """Get the current volatility from ATR or rolling std."""
         # Try ATR column
-        atr_cols = [c for c in self._feature_cols if "atr" in c.lower() and "pct" in c.lower()]
-        if atr_cols:
+        if self._atr_array is not None:
             idx = min(self.current_step, self.n_steps - 1)
-            val = self.df[atr_cols[0]].iloc[idx]
+            val = self._atr_array[idx]
             return float(val) if not np.isnan(val) else 0.0
 
         # Fallback: rolling std of returns
@@ -401,10 +424,9 @@ class CryptoTradingEnv(gym.Env):
 
     def _get_trend_direction(self) -> float:
         """Get macro trend direction from multi-TF EMA if available."""
-        ema_cols = [c for c in self._feature_cols if "ema200_dir" in c.lower()]
-        if ema_cols:
+        if self._ema_dir_array is not None:
             idx = min(self.current_step, self.n_steps - 1)
-            val = self.df[ema_cols[0]].iloc[idx]
+            val = self._ema_dir_array[idx]
             if not np.isnan(val):
                 return float(val)
         return 0.0
