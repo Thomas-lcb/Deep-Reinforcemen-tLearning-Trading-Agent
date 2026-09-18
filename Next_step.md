@@ -51,9 +51,9 @@
 
 - [x] 3b.1 — Fixer `drawdown_penalty` (`env/reward.py`) : ne pénaliser que l'aggravation du drawdown, pas son maintien permanent (tests de non-régression dans `tests/test_reward.py`)
 - [ ] 3b.2 — Ajouter `target_kl` (~0.02–0.03) au PPO dans `training/curriculum.py` — `approx_kl` a atteint 82.8 en L3, aucun garde-fou actuel
-- [ ] 3b.3 — Activer la randomisation du point de départ dès L1/L2 (pas seulement L3) pour éviter de rejouer la même tranche de données à chaque épisode
+- [x] 3b.3 — Activer la randomisation du point de départ dès L1/L2 (pas seulement L3) et plafonner la longueur d'épisode (`training.max_episode_steps`, `env/trading_env.py`) — sur le dataset 1 an actuel un épisode non plafonné dure ~367k steps (plus long qu'un niveau entier), donc `ep_rew_mean` ne se peuplait jamais et l'agent rejouait toujours la même tranche en L1/L2. Découvert en essayant de valider le fix 3b.1 : le run de validation (75k steps) n'a jamais complété un seul épisode. Tests de non-régression dans `tests/test_env.py::TestMaxEpisodeSteps`.
 - [ ] 3b.4 — Réintroduire une décroissance du LR PPO (ou reset du scheduler) lors du transfert de poids entre niveaux de curriculum
-- [ ] 3b.5 — Lancer un run de validation court (Niveau 1, ~50-100k steps) pour vérifier la signature attendue du fix 3b.1 (`train/std` stable, `ep_rew_mean` non extrême) avant d'enchaîner 3b.2/3b.3/3b.4 un par un
+- [ ] 3b.5 — Relancer un run de validation court (Niveau 1, ~75-100k steps) avec 3b.1+3b.3 en place pour vérifier la signature attendue (`train/std` stable, `ep_rew_mean` enfin peuplé et non extrême) avant d'enchaîner 3b.2/3b.4. *(1re tentative le 18/09 invalidée : dataset 1 an régénéré à la volée alors que la comparaison utilisait un run de mars sur un dataset ~15x plus petit — confondu, à refaire proprement maintenant que 3b.3 est en place)*
 - [ ] 3b.6 — Retrouver ou reconstruire le code `fee_annealing`/`curriculum_v2` (run crashé du 6 avril, jamais committé) et auditer sa reward avant de le relancer
 - [ ] 3b.7 — Auditer `fee_penalty_weight`, `sharpe_bonus`, `unrealized_pnl_weight` avec la même rigueur que `drawdown_penalty` (simulation + test de non-régression)
 

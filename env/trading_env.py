@@ -129,6 +129,17 @@ class CryptoTradingEnv(gym.Env):
         self.dr_capital_var = dr_cfg.get("capital_variation_pct", 0.20)
         self.dr_fee_range = dr_cfg.get("fee_range", [0.0005, 0.0015])
 
+        # --- Episode length (training only) ---
+        # Bounds episode length independently of dataset size and randomizes
+        # the starting point every reset, even when domain_randomization
+        # (capital/fee) is disabled. Without this, on a full-year 1-minute
+        # dataset a single episode spans ~367k steps — longer than an entire
+        # curriculum level's budget — so ep_rew_mean never populates and the
+        # agent replays the exact same slice every reset.
+        self.max_episode_steps = config.get("training", {}).get("max_episode_steps", None)
+        self.randomize_start = mode == "train"
+        self.episode_end_step = 0
+
         # --- Reward ---
         reward_cfg = config.get("reward", {})
         self.reward_calc = RewardCalculator(reward_cfg)
@@ -162,27 +173,36 @@ class CryptoTradingEnv(gym.Env):
                 self.close_prices = self.df["close"].values
             self.n_steps = len(self.df)
 
-        # Domain randomization
+        # Domain randomization: capital & fee rate (risk/cost regime)
         if self.dr_enabled:
-            # Randomize starting capital
             cap_var = self.np_random.uniform(-self.dr_capital_var, self.dr_capital_var)
             self.initial_capital = self.default_capital * (1.0 + cap_var)
-
-            # Randomize fee rate
             self.fee_rate = self.np_random.uniform(*self.dr_fee_range)
-
-            # Randomize starting position in data
-            max_start = max(0, self.n_steps - self.lookback_window - 2000)
-            if max_start > self.lookback_window:
-                self.current_step = self.np_random.integers(
-                    self.lookback_window, max_start
-                )
-            else:
-                self.current_step = self.lookback_window
         else:
             self.initial_capital = self.default_capital
             self.fee_rate = self.base_fee_rate
+
+        # Starting point / episode length: randomized during training so the
+        # agent sees varied market segments and episodes actually complete
+        # within a curriculum level's budget. Applies independently of
+        # dr_enabled (capital/fee randomization is a separate concern).
+        # Eval modes ('val'/'test') always traverse the full dataset from
+        # the start, deterministically.
+        if self.randomize_start and (self.max_episode_steps is not None or self.dr_enabled):
+            episode_len = (
+                self.max_episode_steps
+                if self.max_episode_steps is not None
+                else (self.n_steps - self.lookback_window - 1)
+            )
+            max_start = max(self.lookback_window, self.n_steps - episode_len - 1)
+            if max_start > self.lookback_window:
+                self.current_step = self.np_random.integers(self.lookback_window, max_start)
+            else:
+                self.current_step = self.lookback_window
+            self.episode_end_step = min(self.n_steps - 1, self.current_step + episode_len)
+        else:
             self.current_step = self.lookback_window
+            self.episode_end_step = self.n_steps - 1
 
         # Reset portfolio
         self.balance_usdt = self.initial_capital
@@ -305,8 +325,8 @@ class CryptoTradingEnv(gym.Env):
         terminated = False
         truncated = False
 
-        # End of data
-        if self.current_step >= self.n_steps - 1:
+        # End of data, or end of the (possibly capped) episode window
+        if self.current_step >= self.n_steps - 1 or self.current_step >= self.episode_end_step:
             truncated = True
 
         # Portfolio collapsed (lost > 95% of initial capital)

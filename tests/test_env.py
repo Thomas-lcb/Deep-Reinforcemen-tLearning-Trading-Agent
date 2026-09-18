@@ -163,3 +163,59 @@ class TestSB3Compat:
     def test_check_env(self, env):
         from stable_baselines3.common.env_checker import check_env
         check_env(env, warn=True)
+
+
+class TestMaxEpisodeSteps:
+    """
+    Regression tests for bounded, randomized-start episodes during training.
+
+    Without this, an episode always starts at the same point and only ends
+    at the end of the dataframe. On the current 1-year/1-minute dataset
+    that's ~367k steps per episode — longer than an entire curriculum
+    level's budget, so ep_rew_mean never populates and the agent replays
+    the exact same slice every reset (see Next_step.md 3b.3).
+    """
+
+    @pytest.fixture
+    def train_config(self, config):
+        cfg = dict(config)
+        cfg["training"] = dict(config["training"])
+        cfg["training"]["max_episode_steps"] = 200
+        cfg["training"]["domain_randomization"] = dict(config["training"]["domain_randomization"])
+        cfg["training"]["domain_randomization"]["enabled"] = False
+        return cfg
+
+    def test_episode_truncates_at_max_episode_steps(self, synthetic_df, train_config):
+        env = CryptoTradingEnv(synthetic_df, config=train_config, mode="train")
+        env.reset(seed=0)
+        steps = 0
+        done = False
+        while not done:
+            _, _, term, trunc, _ = env.step(np.array([0.0]))
+            done = term or trunc
+            steps += 1
+        # Dataset has ~1900 usable rows; without the cap the episode would
+        # run that long. With max_episode_steps=200 it must stop much sooner.
+        assert steps <= 201
+
+    def test_start_point_randomized_across_resets(self, synthetic_df, train_config):
+        env = CryptoTradingEnv(synthetic_df, config=train_config, mode="train")
+        starts = set()
+        for seed in range(10):
+            env.reset(seed=seed)
+            starts.add(env.current_step)
+        # At least some resets must land on different starting points.
+        assert len(starts) > 1
+
+    def test_eval_mode_ignores_max_episode_steps(self, synthetic_df, train_config):
+        """mode='test' must still traverse the full dataset deterministically."""
+        env = CryptoTradingEnv(synthetic_df, config=train_config, mode="test")
+        obs, _ = env.reset(seed=0)
+        assert env.current_step == env.lookback_window
+        steps = 0
+        done = False
+        while not done:
+            _, _, term, trunc, _ = env.step(np.array([0.0]))
+            done = term or trunc
+            steps += 1
+        assert steps > 201  # full dataset, not capped

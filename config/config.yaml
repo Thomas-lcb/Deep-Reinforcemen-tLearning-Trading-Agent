@@ -1,7 +1,12 @@
 training:
   total_timesteps: 2000000
   n_envs: 1  # Limité à 1 environnement parallèle pour ne pas saturer les 2 Go de VRAM avec les buffers d'observations
-  
+
+  max_episode_steps: 20000  # ~14 jours de bougies 1m. Sans ça, un épisode dure ~367k steps
+                             # sur le dataset 1 an actuel (plus long qu'un niveau entier de
+                             # curriculum) : ep_rew_mean ne se peuple jamais et l'agent
+                             # rejoue toujours exactement la même tranche de données.
+
   domain_randomization:
     enabled: true
     capital_variation_pct: 0.20
