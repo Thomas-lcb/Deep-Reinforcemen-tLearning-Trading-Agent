@@ -2,7 +2,7 @@
 training/curriculum.py — Apprentissage par paliers progressifs (Curriculum Learning).
 
 L'entraînement par renforcement est souvent plus efficace si la difficulté
-augmente progressivement. Ce script définit et exécute 3 niveaux de difficulté
+augmente progressivement. Ce script définit et exécute 4 niveaux de difficulté
 pour le modèle PPO.
 
 Usage:
@@ -51,6 +51,9 @@ def set_curriculum_level(config: dict, level: int):
         cfg["fees"]["taker"] = 0.0
         cfg["training"]["domain_randomization"]["enabled"] = False
         cfg["training"]["total_timesteps"] = 500_000
+        # Enforce explicitly: L1 must never leak shorting even if
+        # config.yaml is hand-edited to short.enabled=true.
+        cfg.setdefault("short", {})["enabled"] = False
 
     elif level == 2:
         print(f"💡 Niveau 2 : {LEVEL_DESCRIPTIONS[2]}")
@@ -59,6 +62,9 @@ def set_curriculum_level(config: dict, level: int):
         cfg["fees"]["taker"] = 0.001
         cfg["training"]["domain_randomization"]["enabled"] = False
         cfg["training"]["total_timesteps"] = 1_000_000
+        # Enforce explicitly: L2 must never leak shorting even if
+        # config.yaml is hand-edited to short.enabled=true.
+        cfg.setdefault("short", {})["enabled"] = False
 
     elif level == 3:
         print(f"💡 Niveau 3 : {LEVEL_DESCRIPTIONS[3]}")
@@ -67,6 +73,9 @@ def set_curriculum_level(config: dict, level: int):
         cfg["fees"]["taker"] = 0.001
         cfg["training"]["domain_randomization"]["enabled"] = True
         cfg["training"]["total_timesteps"] = 1_500_000
+        # Enforce explicitly: L3 must never leak shorting even if
+        # config.yaml is hand-edited to short.enabled=true.
+        cfg.setdefault("short", {})["enabled"] = False
 
     elif level == 4:
         print(f"💡 Niveau 4 : {LEVEL_DESCRIPTIONS[4]}")
@@ -74,7 +83,10 @@ def set_curriculum_level(config: dict, level: int):
         cfg["fees"]["maker"] = 0.001
         cfg["fees"]["taker"] = 0.001
         cfg["training"]["domain_randomization"]["enabled"] = True
-        cfg["short"]["enabled"] = True
+        # setdefault (not a bare cfg["short"]["enabled"]) so this doesn't
+        # KeyError when the "short" key is absent from config.yaml — every
+        # new config value must have a safe default.
+        cfg.setdefault("short", {})["enabled"] = True
         cfg["training"]["total_timesteps"] = 1_500_000
     else:
         raise ValueError(f"Niveau non supporté : {level}")
