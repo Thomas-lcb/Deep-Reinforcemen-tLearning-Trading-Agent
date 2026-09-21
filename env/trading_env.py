@@ -329,6 +329,15 @@ class CryptoTradingEnv(gym.Env):
         # --- Advance time ---
         self.current_step += 1
 
+        # --- Funding cost (short only) ---
+        # Applied every step regardless of this step's action, mirroring a
+        # perpetual futures funding payment — the cost of *holding* a short,
+        # separate from the transaction fee paid when opening/closing it.
+        if self.balance_asset < 0:
+            price_for_funding = self.close_prices[min(self.current_step, self.n_steps - 1)]
+            funding_cost = abs(self.balance_asset) * price_for_funding * self.funding_rate_per_step
+            self.balance_usdt -= funding_cost
+
         # --- Calculate reward ---
         current_value = self._portfolio_value()
         current_price_now = self.close_prices[min(self.current_step, self.n_steps - 1)]
