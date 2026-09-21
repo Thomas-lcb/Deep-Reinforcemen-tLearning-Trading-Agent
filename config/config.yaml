@@ -69,13 +69,11 @@ action:
                    # hors d'une zone "hold" aussi étroite : ~11 800-12 000 trades par rollout de
                    # 12 288 steps mesurés en L1/L2/L3 (~97% des steps), qu'il y ait des frais ou
                    # non. Cf. README Phase 5.D (déjà anticipé).
-  cooldown_steps: 5                 # Activé (était 0, jamais utilisé). dead_zone x2 seule n'a
-                                     # réduit trades_count que de ~2-3% sur un run L2 mesuré,
-                                     # car elle agit sur une distribution d'actions (probabiliste)
-                                     # alors que le problème est la fréquence en soi. cooldown_steps
-                                     # plafonne de façon déterministe : au plus 1 trade tous les 5
-                                     # steps (~5 min de bougies 1m) par environnement, indépendamment
-                                     # de la forme de la distribution d'actions.
+  cooldown_steps: 10                # Doublé (était 5). À 5, -82% de trades_count mesuré sur L2
+                                     # (~11 500->~2 025/rollout), profit_factor jusqu'à 0.95 (proche
+                                     # de 1.0 sans le dépasser) et plancher du pire épisode -73%->-36%.
+                                     # Le plafond de rendement de ce levier n'était pas encore atteint,
+                                     # donc on continue à pousser dans la même direction validée.
   max_position_pct: 0.25            # Max 25% of capital per single trade
 
 observation:
