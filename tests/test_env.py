@@ -100,6 +100,7 @@ class TestActions:
 
     def test_sell_after_buy(self, env):
         env.max_position_pct = 1.0  # Bypass position cap for this test
+        env.cooldown_steps = 0  # This test is about buy/sell mechanics, not cooldown spacing
         env.reset(seed=0)
         env.step(np.array([1.0]))  # Buy all
         obs, r, term, trunc, info = env.step(np.array([-1.0]))  # Sell all
@@ -114,12 +115,53 @@ class TestActions:
         assert info["trade"]["type"] == "hold"
 
     def test_fees_deducted(self, env):
+        env.cooldown_steps = 0  # This test is about fee mechanics, not cooldown spacing
         env.reset(seed=0)
         initial = env.balance_usdt
         env.step(np.array([1.0]))  # Buy
         env.step(np.array([-1.0]))  # Sell
         # After round trip, we should have LESS due to fees
         assert env.balance_usdt < initial
+
+
+class TestCooldown:
+    """
+    Regression tests for action.cooldown_steps, enabled in config.yaml to
+    structurally cap trade frequency. Measured on the live curriculum runs
+    (W&B trading/trades_count): the agent was trading on ~96-97% of all
+    steps regardless of fees, and widening dead_zone alone barely moved
+    that (with train/std kept near 1.0 by target_kl, most of the action
+    distribution's mass falls outside even a doubled dead_zone). Unlike
+    dead_zone, cooldown_steps enforces a hard minimum spacing between
+    trades independently of the action distribution's shape.
+    """
+
+    def test_blocks_trade_too_soon(self, env):
+        env.cooldown_steps = 3
+        env.max_position_pct = 1.0
+        env.reset(seed=0)
+        env.step(np.array([1.0]))  # Buy - starts the cooldown
+        _, _, _, _, info = env.step(np.array([-1.0]))  # Immediately after: too soon
+        assert info["trade"]["type"] == "hold"
+        assert env.balance_asset > 0  # The buy still executed, only the sell was blocked
+
+    def test_allows_trade_after_elapsed(self, env):
+        env.cooldown_steps = 2
+        env.max_position_pct = 1.0
+        env.reset(seed=0)
+        env.step(np.array([1.0]))  # Buy - starts the cooldown
+        env.step(np.array([0.0]))  # Hold (1 step elapsed)
+        env.step(np.array([0.0]))  # Hold (2 steps elapsed)
+        _, _, _, _, info = env.step(np.array([-1.0]))  # Cooldown elapsed: allowed
+        assert info["trade"]["type"] == "sell"
+
+    def test_disabled_by_default_value_zero(self, env):
+        env.cooldown_steps = 0
+        env.max_position_pct = 1.0
+        env.reset(seed=0)
+        env.step(np.array([1.0]))
+        _, _, _, _, info = env.step(np.array([-1.0]))
+        assert info["trade"]["type"] == "sell"
 
 
 class TestTradePnl:
@@ -140,6 +182,7 @@ class TestTradePnl:
 
     def test_sell_reports_realized_pnl_pct(self, env):
         env.max_position_pct = 1.0
+        env.cooldown_steps = 0  # This test is about pnl_pct, not cooldown spacing
         env.reset(seed=0)
         env.step(np.array([1.0]))  # Buy all
         entry_price = env.entry_price
@@ -187,6 +230,7 @@ class TestEpisode:
         assert info["portfolio_value"] > 0
 
     def test_trade_history(self, env):
+        env.cooldown_steps = 0  # This test is about trade logging, not cooldown spacing
         env.reset(seed=0)
         env.step(np.array([0.8]))
         env.step(np.array([-0.5]))

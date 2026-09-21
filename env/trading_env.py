@@ -153,7 +153,9 @@ class CryptoTradingEnv(gym.Env):
         self.balance_usdt = 0.0
         self.balance_asset = 0.0
         self.entry_price = 0.0
-        self.steps_since_trade = 0
+        # Starts already "past" the cooldown so the very first trade of an
+        # episode is never spuriously blocked (there's no "last trade" yet).
+        self.steps_since_trade = self.cooldown_steps
         self.fee_rate = self.base_fee_rate
         self.initial_capital = self.default_capital
         self.trade_history = []
@@ -210,7 +212,9 @@ class CryptoTradingEnv(gym.Env):
         self.balance_usdt = self.initial_capital
         self.balance_asset = 0.0
         self.entry_price = 0.0
-        self.steps_since_trade = 0
+        # See __init__: starts "past" the cooldown so the first trade of the
+        # new episode isn't spuriously blocked.
+        self.steps_since_trade = self.cooldown_steps
         self.trade_history = []
         self.portfolio_history = []
 
