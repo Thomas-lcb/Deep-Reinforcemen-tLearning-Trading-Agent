@@ -88,9 +88,13 @@ def get_observation(
     balance_usdt_pct = balance_usdt / (total_value + 1e-10)
     balance_asset_pct = (balance_asset * asset_price) / (total_value + 1e-10)
 
-    # Unrealized PnL
-    if balance_asset > 0 and entry_price > 0:
+    # Unrealized PnL — a long position profits when price rises above entry;
+    # a short position (balance_asset < 0) profits when price falls below
+    # entry, so the formula inverts.
+    if entry_price > 0 and balance_asset > 0:
         unrealized_pnl_pct = (asset_price - entry_price) / entry_price
+    elif entry_price > 0 and balance_asset < 0:
+        unrealized_pnl_pct = (entry_price - asset_price) / entry_price
     else:
         unrealized_pnl_pct = 0.0
 
