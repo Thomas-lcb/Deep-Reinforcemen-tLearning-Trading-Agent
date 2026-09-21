@@ -284,6 +284,23 @@ class TestShortSelling:
         assert info["trade"]["type"] == "hold"
         assert env.balance_asset < 0  # toujours ouvert
 
+    def test_short_position_direction_feeds_trend_bonus(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.reset(seed=0)
+        env.step(np.array([-1.0]))  # ouvre un short -> position_direction doit valoir -1.0
+
+        # Force artificiellement une tendance macro baissiere (alignee avec le short)
+        # Note: current_step will be incremented at the start of the next step(),
+        # so we set the trend value at current_step + 1
+        if env._ema_dir_array is not None:
+            env._ema_dir_array[env.current_step + 1] = -1.0
+
+        _, _, _, _, info = env.step(np.array([0.0]))
+        # Aligne (short + tendance baissiere) -> bonus positif
+        assert info["trend_bonus"] > 0
+
 
 class TestTradePnl:
     """

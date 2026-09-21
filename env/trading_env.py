@@ -380,13 +380,21 @@ class CryptoTradingEnv(gym.Env):
         # Get trend direction from multi-TF features if available
         trend_dir = self._get_trend_direction()
 
-        # Position direction: +1 if long (holding asset), 0 if flat
-        pos_dir = 1.0 if self.balance_asset > 1e-10 else 0.0
+        # Position direction: +1 long, -1 short, 0 flat
+        if self.balance_asset > 1e-10:
+            pos_dir = 1.0
+        elif self.balance_asset < -1e-10:
+            pos_dir = -1.0
+        else:
+            pos_dir = 0.0
 
-        # Unrealized PNL percentage
+        # Unrealized PNL percentage — inverted for a short (profits when
+        # price falls below entry), same formula as env/observation.py.
         unrealized_pnl_pct = 0.0
-        if self.balance_asset > 1e-10 and self.entry_price > 0:
+        if self.entry_price > 0 and self.balance_asset > 1e-10:
             unrealized_pnl_pct = (current_price_now - self.entry_price) / self.entry_price
+        elif self.entry_price > 0 and self.balance_asset < -1e-10:
+            unrealized_pnl_pct = (self.entry_price - current_price_now) / self.entry_price
 
         reward_info = self.reward_calc.calculate(
             current_value=current_value,
