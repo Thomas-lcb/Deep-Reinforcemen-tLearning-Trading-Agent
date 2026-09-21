@@ -191,7 +191,20 @@ class TestShortSelling:
         env.max_position_pct = 1.0
         env.cooldown_steps = 0
         env.reset(seed=0)
+        price_at_open = env.close_prices[env.current_step]
         env.step(np.array([-1.0]))  # ouvre un short
+
+        # Independent check of entry_price, computed by hand from known
+        # inputs rather than trusting the implementation under test. With
+        # max_position_pct=1.0 and raw_action=-1.0, the whole balance_usdt
+        # is shorted: amount_usdt (net proceeds, fee already subtracted)
+        # divided by amount_asset gives price_at_open * (1 - fee_rate) —
+        # entry_price sits slightly BELOW spot, symmetric to how a buy's
+        # entry_price sits slightly ABOVE spot due to the fee.
+        assert env.entry_price == pytest.approx(
+            price_at_open * (1 - env.fee_rate), rel=1e-6
+        )
+
         entry_price = env.entry_price
         cover_price = env.close_prices[env.current_step]
         expected_pnl_pct = (entry_price - cover_price) / entry_price

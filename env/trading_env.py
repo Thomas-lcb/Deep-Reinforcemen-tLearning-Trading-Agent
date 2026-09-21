@@ -296,8 +296,7 @@ class CryptoTradingEnv(gym.Env):
             self._log_trade(trade, current_price)
 
         elif trade["type"] == "short" and trade["amount_asset"] > 0:
-            notional_at_entry = trade["amount_asset"] * current_price
-            total_cost_basis = self.entry_price * abs(self.balance_asset) + notional_at_entry
+            total_cost_basis = self.entry_price * abs(self.balance_asset) + trade["amount_usdt"]
 
             self.balance_usdt += trade["amount_usdt"]  # net proceeds
             self.balance_asset -= trade["amount_asset"]  # devient plus negatif
