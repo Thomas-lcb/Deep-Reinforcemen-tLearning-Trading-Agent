@@ -130,6 +130,13 @@ class CryptoTradingEnv(gym.Env):
         self.dr_capital_var = dr_cfg.get("capital_variation_pct", 0.20)
         self.dr_fee_range = dr_cfg.get("fee_range", [0.0005, 0.0015])
 
+        # --- Short-selling config ---
+        short_cfg = config.get("short", {})
+        self.short_enabled = short_cfg.get("enabled", False)
+        self.funding_rate_per_step = short_cfg.get("funding_rate_per_step", 0.0)
+        self.maintenance_margin_pct = short_cfg.get("maintenance_margin_pct", 0.5)
+        self.liquidation_penalty_pct = short_cfg.get("liquidation_penalty_pct", 0.0)
+
         # --- Episode length (training only) ---
         # Bounds episode length independently of dataset size and randomizes
         # the starting point every reset, even when domain_randomization
@@ -250,6 +257,7 @@ class CryptoTradingEnv(gym.Env):
             dead_zone=self.dead_zone,
             fee_rate=self.fee_rate,
             max_position_pct=self.max_position_pct,
+            short_enabled=self.short_enabled,
         )
 
         # Apply cooldown
@@ -281,6 +289,35 @@ class CryptoTradingEnv(gym.Env):
 
             # Reset entry price if fully closed
             if self.balance_asset < 1e-10:
+                self.balance_asset = 0.0
+                self.entry_price = 0.0
+
+            self.steps_since_trade = 0
+            self._log_trade(trade, current_price)
+
+        elif trade["type"] == "short" and trade["amount_asset"] > 0:
+            notional_at_entry = trade["amount_asset"] * current_price
+            total_cost_basis = self.entry_price * abs(self.balance_asset) + notional_at_entry
+
+            self.balance_usdt += trade["amount_usdt"]  # net proceeds
+            self.balance_asset -= trade["amount_asset"]  # devient plus negatif
+
+            if self.balance_asset < 0:
+                self.entry_price = total_cost_basis / abs(self.balance_asset)
+
+            self.steps_since_trade = 0
+            self._log_trade(trade, current_price)
+
+        elif trade["type"] == "cover" and trade["amount_asset"] > 0:
+            # Realized P&L of a short is INVERTED vs a long: profits when
+            # price falls below entry.
+            if self.entry_price > 0:
+                trade["pnl_pct"] = (self.entry_price - current_price) / self.entry_price
+
+            self.balance_usdt -= trade["amount_usdt"]  # cost + fee
+            self.balance_asset += trade["amount_asset"]  # se rapproche de 0
+
+            if self.balance_asset > -1e-10:
                 self.balance_asset = 0.0
                 self.entry_price = 0.0
 

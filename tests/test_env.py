@@ -164,6 +164,58 @@ class TestCooldown:
         assert info["trade"]["type"] == "sell"
 
 
+class TestShortSelling:
+    """
+    Regression tests for short-selling, gated by config short.enabled
+    (default False — see docs/superpowers/specs/2026-09-21-short-selling-design.md).
+    The default `env` fixture loads the real config.yaml, where
+    short.enabled=False, so these tests explicitly flip env.short_enabled
+    for the duration of the test.
+    """
+
+    def test_short_disabled_by_default(self, env):
+        assert env.short_enabled is False
+
+    def test_sell_while_flat_opens_short(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.reset(seed=0)
+        _, _, _, _, info = env.step(np.array([-0.8]))
+        assert info["trade"]["type"] == "short"
+        assert env.balance_asset < 0
+        assert env.balance_usdt > 0  # a recu le produit net de la vente a decouvert
+
+    def test_cover_closes_short_and_reports_pnl(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.reset(seed=0)
+        env.step(np.array([-1.0]))  # ouvre un short
+        entry_price = env.entry_price
+        cover_price = env.close_prices[env.current_step]
+        expected_pnl_pct = (entry_price - cover_price) / entry_price
+
+        _, _, _, _, info = env.step(np.array([1.0]))  # couvre entierement
+
+        assert info["trade"]["type"] == "cover"
+        assert "pnl_pct" in info["trade"]
+        assert info["trade"]["pnl_pct"] == pytest.approx(expected_pnl_pct, rel=1e-6)
+        assert env.balance_asset == pytest.approx(0.0, abs=1e-9)
+        assert env.entry_price == 0.0
+
+    def test_short_pnl_positive_when_price_falls(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.reset(seed=0)
+        env.step(np.array([-1.0]))
+        # Force artificiellement une baisse de prix pour un test deterministe
+        env.close_prices[env.current_step] = env.entry_price * 0.9
+        _, _, _, _, info = env.step(np.array([1.0]))
+        assert info["trade"]["pnl_pct"] > 0
+
+
 class TestTradePnl:
     """
     Regression tests for trade['pnl_pct'] — required by

@@ -128,3 +128,15 @@ paths:
   processed_data: "data/processed"
   models: "models"
   logs: "logs"
+
+short:
+  enabled: false                  # Off par défaut : L1-L3 inchangés. true pour le Niveau 4 uniquement.
+  funding_rate_per_step: 0.000001 # ~0.024%/8h ramené au pas de 1 minute (ordre de grandeur d'un
+                                   # funding rate réel de perpétuel BTC, historiquement ~0.01-0.03%/8h
+                                   # sur Binance). Sans ce coût, l'agent apprendrait à shorter
+                                   # gratuitement — ne transférerait pas à un usage réel.
+  maintenance_margin_pct: 0.5     # Liquidation forcée si la perte latente atteint 50% de la valeur
+                                   # notionnelle à l'entrée. Avec max_position_pct=0.25, pire cas
+                                   # ≈ 12.5% du capital perdu par liquidation — borné.
+  liquidation_penalty_pct: 0.01   # Coût supplémentaire à la liquidation forcée vs une clôture
+                                   # volontaire, pour inciter l'agent à gérer son risque.
