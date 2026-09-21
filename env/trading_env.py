@@ -338,6 +338,38 @@ class CryptoTradingEnv(gym.Env):
             funding_cost = abs(self.balance_asset) * price_for_funding * self.funding_rate_per_step
             self.balance_usdt -= funding_cost
 
+        # --- Forced liquidation (short only) ---
+        # A long position that is fully paid for (no borrowing) can lose at
+        # most what was invested — the existing bankruptcy check below
+        # already covers that. A short's loss is theoretically unbounded, so
+        # it needs its own guard: force-close before the loss exceeds the
+        # margin committed to that specific position.
+        if self.balance_asset < 0 and self.entry_price > 0:
+            price_for_liq = current_price
+            loss_pct = (price_for_liq - self.entry_price) / self.entry_price
+
+            if loss_pct >= self.maintenance_margin_pct:
+                liq_amount_asset = abs(self.balance_asset)
+                liq_cost = liq_amount_asset * price_for_liq
+                liq_fee = liq_cost * self.fee_rate
+                liq_penalty = liq_cost * self.liquidation_penalty_pct
+                liq_pnl_pct = (self.entry_price - price_for_liq) / self.entry_price
+
+                self.balance_usdt -= (liq_cost + liq_fee + liq_penalty)
+                self.balance_asset = 0.0
+                self.entry_price = 0.0
+                self.steps_since_trade = 0
+
+                trade = {
+                    "type": "liquidation",
+                    "amount_usdt": liq_cost + liq_fee + liq_penalty,
+                    "amount_asset": liq_amount_asset,
+                    "proportion": 1.0,
+                    "fee": liq_fee + liq_penalty,
+                    "pnl_pct": liq_pnl_pct,
+                }
+                self._log_trade(trade, price_for_liq)
+
         # --- Calculate reward ---
         current_value = self._portfolio_value()
         current_price_now = self.close_prices[min(self.current_step, self.n_steps - 1)]

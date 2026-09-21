@@ -248,6 +248,42 @@ class TestShortSelling:
         env.step(np.array([0.0]))  # reste a plat
         assert env.balance_usdt == pytest.approx(usdt_before)
 
+    def test_forced_liquidation_on_large_adverse_move(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.maintenance_margin_pct = 0.5
+        env.reset(seed=0)
+        env.step(np.array([-1.0]))  # ouvre le short
+        entry_price = env.entry_price
+        assert env.balance_asset < 0
+
+        # Simule une hausse de prix de +60% (perte latente > 50% du short)
+        env.close_prices[env.current_step] = entry_price * 1.6
+
+        _, _, terminated, truncated, info = env.step(np.array([0.0]))  # hold
+
+        assert info["trade"]["type"] == "liquidation"
+        assert env.balance_asset == pytest.approx(0.0, abs=1e-9)
+        assert env.entry_price == 0.0
+
+    def test_no_liquidation_within_margin(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.maintenance_margin_pct = 0.5
+        env.reset(seed=0)
+        env.step(np.array([-1.0]))
+        entry_price = env.entry_price
+
+        # +10% seulement : bien en dessous du seuil de maintenance de 50%
+        env.close_prices[env.current_step] = entry_price * 1.1
+
+        _, _, _, _, info = env.step(np.array([0.0]))
+
+        assert info["trade"]["type"] == "hold"
+        assert env.balance_asset < 0  # toujours ouvert
+
 
 class TestTradePnl:
     """
