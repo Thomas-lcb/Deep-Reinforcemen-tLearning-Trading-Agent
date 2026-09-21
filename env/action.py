@@ -36,6 +36,7 @@ def interpret_action(
     dead_zone: float = 0.05,
     fee_rate: float = 0.001,
     max_position_pct: float = 1.0,
+    short_enabled: bool = False,
 ) -> dict:
     """
     Interpret the agent's raw action into a concrete trade.
@@ -43,19 +44,24 @@ def interpret_action(
     Args:
         raw_action: Value in [-1, 1] from the agent.
         balance_usdt: Current USDT balance.
-        balance_asset: Current asset quantity.
+        balance_asset: Current asset quantity. Negative = short position
+            (only possible when short_enabled has been True in the past).
         asset_price: Current asset price.
         dead_zone: Actions within [-dead_zone, +dead_zone] are treated as Hold.
         fee_rate: Transaction fee rate (e.g. 0.001 = 0.1%).
         max_position_pct: Maximum proportion of capital per trade (e.g. 0.25 = 25%).
+        short_enabled: If False (default), a negative action while flat or
+            short does nothing (today's long-only behavior, unchanged bit
+            for bit). If True, it opens/increases a short position.
 
     Returns:
         Dict with keys:
-        - 'type': 'buy' | 'sell' | 'hold'
-        - 'amount_usdt': USDT amount to trade (for buy)
-        - 'amount_asset': Asset amount to trade (for sell)
-        - 'proportion': Effective proportion of capital used
-        - 'fee': Estimated fee for this trade
+        - 'type': 'buy' | 'sell' | 'short' | 'cover' | 'hold'
+        - 'amount_usdt': for 'buy'/'cover', total cash outlay INCLUDING fee.
+          for 'sell'/'short', net proceeds AFTER fee.
+        - 'amount_asset': asset quantity traded.
+        - 'proportion': effective proportion of capital/position used.
+        - 'fee': fee for this trade.
     """
     # Clamp action
     action = float(np.clip(raw_action, -1.0, 1.0))
@@ -71,10 +77,25 @@ def interpret_action(
         }
 
     if action > dead_zone:
-        # BUY: scale proportion from 0 to 1 over [dead_zone, 1]
         proportion = (action - dead_zone) / (1.0 - dead_zone)
-        # Cap at max_position_pct
         proportion = min(proportion, max_position_pct)
+
+        if balance_asset < 0:
+            # COVER: buy back a fraction of the existing short.
+            amount_asset = abs(balance_asset) * proportion
+            cost = amount_asset * asset_price
+            fee = cost * fee_rate
+            amount_usdt = cost + fee
+
+            return {
+                "type": "cover",
+                "amount_usdt": amount_usdt,
+                "amount_asset": amount_asset,
+                "proportion": proportion,
+                "fee": fee,
+            }
+
+        # BUY: scale proportion from 0 to 1 over [dead_zone, 1]
         amount_usdt = balance_usdt * proportion
 
         # Account for fees: we can only buy (amount / (1 + fee))
@@ -91,10 +112,36 @@ def interpret_action(
         }
 
     else:
-        # SELL: scale proportion from 0 to 1 over [-1, -dead_zone]
         proportion = (abs(action) - dead_zone) / (1.0 - dead_zone)
-        # Cap at max_position_pct
         proportion = min(proportion, max_position_pct)
+
+        if balance_asset <= 0:
+            if not short_enabled:
+                # Unchanged today's behavior: nothing to sell while flat.
+                return {
+                    "type": "hold",
+                    "amount_usdt": 0.0,
+                    "amount_asset": 0.0,
+                    "proportion": 0.0,
+                    "fee": 0.0,
+                }
+
+            # SHORT: open/increase a short position.
+            notional = balance_usdt * proportion
+            amount_asset = notional / asset_price if asset_price > 0 else 0.0
+            gross_usdt = amount_asset * asset_price
+            fee = gross_usdt * fee_rate
+            amount_usdt = gross_usdt - fee
+
+            return {
+                "type": "short",
+                "amount_usdt": amount_usdt,
+                "amount_asset": amount_asset,
+                "proportion": proportion,
+                "fee": fee,
+            }
+
+        # SELL: scale proportion from 0 to 1 over [-1, -dead_zone]
         amount_asset = balance_asset * proportion
 
         # Revenue after fees
