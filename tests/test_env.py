@@ -228,6 +228,26 @@ class TestShortSelling:
         _, _, _, _, info = env.step(np.array([1.0]))
         assert info["trade"]["pnl_pct"] > 0
 
+    def test_funding_cost_deducted_while_short_open(self, env):
+        env.short_enabled = True
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.funding_rate_per_step = 0.001  # valeur elevee pour rendre l'effet mesurable dans le test
+        env.reset(seed=0)
+        env.step(np.array([-1.0]))  # ouvre le short
+        usdt_before = env.balance_usdt
+        env.step(np.array([0.0]))  # hold : le funding doit quand meme s'appliquer
+        assert env.balance_usdt < usdt_before
+
+    def test_no_funding_cost_while_flat(self, env):
+        env.short_enabled = True
+        env.funding_rate_per_step = 0.001
+        env.cooldown_steps = 0
+        env.reset(seed=0)
+        usdt_before = env.balance_usdt
+        env.step(np.array([0.0]))  # reste a plat
+        assert env.balance_usdt == pytest.approx(usdt_before)
+
 
 class TestTradePnl:
     """
@@ -364,25 +384,3 @@ class TestMaxEpisodeSteps:
             done = term or trunc
             steps += 1
         assert steps > 201  # full dataset, not capped
-
-
-class TestShortSelling:
-    def test_funding_cost_deducted_while_short_open(self, env):
-        env.short_enabled = True
-        env.max_position_pct = 1.0
-        env.cooldown_steps = 0
-        env.funding_rate_per_step = 0.001  # valeur elevee pour rendre l'effet mesurable dans le test
-        env.reset(seed=0)
-        env.step(np.array([-1.0]))  # ouvre le short
-        usdt_before = env.balance_usdt
-        env.step(np.array([0.0]))  # hold : le funding doit quand meme s'appliquer
-        assert env.balance_usdt < usdt_before
-
-    def test_no_funding_cost_while_flat(self, env):
-        env.short_enabled = True
-        env.funding_rate_per_step = 0.001
-        env.cooldown_steps = 0
-        env.reset(seed=0)
-        usdt_before = env.balance_usdt
-        env.step(np.array([0.0]))  # reste a plat
-        assert env.balance_usdt == pytest.approx(usdt_before)
