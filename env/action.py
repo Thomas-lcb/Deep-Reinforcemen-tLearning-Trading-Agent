@@ -51,8 +51,10 @@ def interpret_action(
         fee_rate: Transaction fee rate (e.g. 0.001 = 0.1%).
         max_position_pct: Maximum proportion of capital per trade (e.g. 0.25 = 25%).
         short_enabled: If False (default), a negative action while flat or
-            short does nothing (today's long-only behavior, unchanged bit
-            for bit). If True, it opens/increases a short position.
+            short results in no trade (behaviorally equivalent to today's
+            long-only logic), though the returned 'type' differs in the
+            flat-sell edge case (hold vs. old zero-amount sell). If True,
+            it opens/increases a short position.
 
     Returns:
         Dict with keys:
@@ -117,7 +119,10 @@ def interpret_action(
 
         if balance_asset <= 0:
             if not short_enabled:
-                # Unchanged today's behavior: nothing to sell while flat.
+                # Functionally equivalent to before (a no-op either way — the
+                # old code returned a zero-amount 'sell' that never executed),
+                # but the raw trade type differs: hold instead of a phantom
+                # zero-amount sell.
                 return {
                     "type": "hold",
                     "amount_usdt": 0.0,

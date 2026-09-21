@@ -8,7 +8,10 @@ from env.action import interpret_action, apply_cooldown
 
 
 class TestLongOnlyUnchanged:
-    """short_enabled=False (défaut) doit reproduire le comportement actuel."""
+    """short_enabled=False (défaut): behavior is functionally equivalent to
+    before (no-op in both cases), though the 'type' label changed in the
+    flat-sell edge case (hold vs. old zero-amount sell). Buy/sell when
+    positioned remain unchanged."""
 
     def test_sell_while_flat_is_hold_without_short(self):
         trade = interpret_action(
