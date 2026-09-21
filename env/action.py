@@ -132,7 +132,17 @@ def interpret_action(
                 }
 
             # SHORT: open/increase a short position.
-            notional = balance_usdt * proportion
+            # Size against equity minus existing short exposure, NOT raw
+            # balance_usdt: opening a short ADDS its proceeds to
+            # balance_usdt (unlike a buy, which SPENDS it and therefore
+            # self-limits), so sizing off balance_usdt directly would let
+            # repeated shorts compound the balance used to size the next
+            # one — unbounded leverage. This caps total short notional at
+            # at most 1x equity (spec §2, "Pas de levier > 1x").
+            equity = balance_usdt + balance_asset * asset_price
+            existing_short_notional = abs(min(balance_asset, 0.0)) * asset_price
+            available = max(0.0, equity - existing_short_notional)
+            notional = available * proportion
             amount_asset = notional / asset_price if asset_price > 0 else 0.0
             gross_usdt = amount_asset * asset_price
             fee = gross_usdt * fee_rate

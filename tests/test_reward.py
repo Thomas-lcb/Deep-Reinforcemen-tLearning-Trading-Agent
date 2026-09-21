@@ -36,6 +36,19 @@ class TestLogReturn:
         assert result["log_return"] == pytest.approx(0.0)
 
 
+class TestNonPositiveCurrentValue:
+    def test_non_positive_current_value_is_finite(self, reward_calc):
+        """
+        Regression test: short-selling can push NAV to zero or negative
+        (impossible in the old long-only code). np.log() of a non-positive
+        current_value produces NaN/-inf, which would silently corrupt PPO
+        training. Both total and log_return must stay finite.
+        """
+        result = reward_calc.calculate(-100, 10000, 0.0, 0.0, 0.0)
+        assert np.isfinite(result["total"])
+        assert np.isfinite(result["log_return"])
+
+
 class TestFeePenalty:
     def test_fee_applied(self, reward_calc):
         result = reward_calc.calculate(10000, 10000, 0.8, 10.0, 0.0)

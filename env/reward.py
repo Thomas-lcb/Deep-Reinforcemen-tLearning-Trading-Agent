@@ -98,10 +98,17 @@ class RewardCalculator:
         self.portfolio_values.append(current_value)
 
         # --- 1. Log-return ---
-        if previous_value > 0:
+        # Short-selling can push NAV to zero or negative (impossible in the
+        # old long-only code), so current_value must be guarded too, not
+        # just previous_value — otherwise np.log() produces NaN/-inf and
+        # silently corrupts PPO training. -1.0 is a large but finite floor:
+        # a clearly-bad-episode signal, reserved for this rare/near-terminal
+        # case, rather than 0.0 (which would mask a wipeout as neutral) or
+        # NaN (which propagates).
+        if previous_value > 0 and current_value > 0:
             log_return = np.log(current_value / previous_value)
         else:
-            log_return = 0.0
+            log_return = -1.0
         self.returns_history.append(log_return)
 
         # --- 2. Fee penalty ---
