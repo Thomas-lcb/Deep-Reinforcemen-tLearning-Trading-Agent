@@ -65,6 +65,15 @@
 
 ---
 
+## Phase 3-ter : Short-selling (Niveau 4)
+*cf. docs/superpowers/specs/2026-09-21-short-selling-design.md et docs/superpowers/plans/2026-09-21-short-selling.md*
+
+- [x] 3c.1 — Implémentation complète (action.py short/cover, trading_env.py exécution+funding+liquidation, observation.py fix unrealized_pnl_pct, curriculum.py Niveau 4). `short.enabled=false` par défaut, L1-L3 inchangés (60 tests existants verts sans modification).
+- [ ] 3c.2 — Lancer et valider le Niveau 4 complet (1.5M steps), comparer win_rate/profit_factor à L3 pour vérifier que le short améliore réellement les performances, pas seulement qu'il est possible.
+- [x] 3c.3 — Vérification finale (Task 8) : suite de tests complète verte (84 passed, 1 skipped) et smoke-test réel de bout en bout du Niveau 4 (30k steps, `python -m training.curriculum --device cuda --level 4 --timesteps 30000`, exit 0, poids L3 chargés, modèle sauvegardé dans `models/saved/ppo_curriculum_l4.zip`). Run W&B `qsytz83s` (état `finished`, https://wandb.ai/thomas_lcb/RLD-Trading/runs/qsytz83s) : `trading/win_rate`, `trading/trades_count`, `rollout/portfolio_value` bien présents et peuplés dans l'historique (valeurs finales observées : `win_rate` 0.402, `trades_count` 766, `portfolio_value` 3512.33). Confirme que le pipeline fonctionne de bout en bout ; ne remplace pas 3c.2 (run complet 1.5M encore à faire).
+
+---
+
 ## Phase 4 : Backtesting & Visualisation
 *cf. agent.md §6 Phase 4*
 
