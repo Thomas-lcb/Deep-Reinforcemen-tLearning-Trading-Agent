@@ -314,6 +314,13 @@ class CryptoTradingEnv(gym.Env):
                 trade["pnl_pct"] = (self.entry_price - current_price) / self.entry_price
 
             self.balance_usdt -= trade["amount_usdt"]  # cost + fee
+            # Cheap safety net: Fix 1 makes single-position sizing solvent
+            # by construction, so this should never fire in practice — but
+            # an insolvent state should fail loudly rather than silently
+            # going negative and corrupting downstream ratios/reward.
+            assert self.balance_usdt > -1e-6, (
+                f"balance_usdt went implausibly negative after cover: {self.balance_usdt}"
+            )
             self.balance_asset += trade["amount_asset"]  # se rapproche de 0
 
             if self.balance_asset > -1e-10:
@@ -356,6 +363,11 @@ class CryptoTradingEnv(gym.Env):
                 liq_pnl_pct = (self.entry_price - price_for_liq) / self.entry_price
 
                 self.balance_usdt -= (liq_cost + liq_fee + liq_penalty)
+                # Cheap safety net (see cover branch above): fail loudly
+                # rather than silently corrupting downstream ratios/reward.
+                assert self.balance_usdt > -1e-6, (
+                    f"balance_usdt went implausibly negative after liquidation: {self.balance_usdt}"
+                )
                 self.balance_asset = 0.0
                 self.entry_price = 0.0
                 self.steps_since_trade = 0
