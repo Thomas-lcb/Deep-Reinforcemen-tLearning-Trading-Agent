@@ -32,6 +32,7 @@ LEVEL_DESCRIPTIONS = {
     1: "Bases du trading (BTC/USDT, 0% frais)",
     2: "Contraintes réelles (BTC/USDT, frais Binance 0.1%)",
     3: "Résilience (BTC/USDT, Domain Randomization)",
+    4: "Short-selling (BTC/USDT, vente à découvert autorisée)",
 }
 
 
@@ -65,6 +66,15 @@ def set_curriculum_level(config: dict, level: int):
         cfg["fees"]["maker"] = 0.001
         cfg["fees"]["taker"] = 0.001
         cfg["training"]["domain_randomization"]["enabled"] = True
+        cfg["training"]["total_timesteps"] = 1_500_000
+
+    elif level == 4:
+        print(f"💡 Niveau 4 : {LEVEL_DESCRIPTIONS[4]}")
+        cfg["market"]["pairs"] = ["BTC/USDT"]
+        cfg["fees"]["maker"] = 0.001
+        cfg["fees"]["taker"] = 0.001
+        cfg["training"]["domain_randomization"]["enabled"] = True
+        cfg["short"]["enabled"] = True
         cfg["training"]["total_timesteps"] = 1_500_000
     else:
         raise ValueError(f"Niveau non supporté : {level}")
@@ -120,8 +130,8 @@ def make_env(dfs, config, rank, run_name, seed=0):
 def main():
     parser = argparse.ArgumentParser(description="Run PPO Curriculum Learning")
     parser.add_argument("--device", type=str, default="cuda", help="cuda or cpu")
-    parser.add_argument("--level", type=int, default=None, choices=[1, 2, 3],
-                         help="Run only this single level instead of the full 1→3 curriculum "
+    parser.add_argument("--level", type=int, default=None, choices=[1, 2, 3, 4],
+                         help="Run only this single level instead of the full 1→4 curriculum "
                               "(useful for quick validation runs).")
     parser.add_argument("--timesteps", type=int, default=None,
                          help="Override total_timesteps for the run(s) (useful for short "
@@ -140,7 +150,7 @@ def main():
     model = None
     previous_model_path = None
 
-    levels_to_run = [args.level] if args.level is not None else range(1, 4)
+    levels_to_run = [args.level] if args.level is not None else range(1, 5)
     if args.level is not None and args.level > 1:
         previous_model_path = os.path.join(ROOT_DIR, "models", "saved", f"ppo_curriculum_l{args.level - 1}")
         if not os.path.exists(previous_model_path + ".zip"):
@@ -255,7 +265,7 @@ def main():
         if wandb is not None and wandb.run is not None:
             wandb.finish()
 
-    print("🎉 CURRICULUM LEARNING TERMINÉ ! (L'agent a complété les 3 niveaux)")
+    print("🎉 CURRICULUM LEARNING TERMINÉ ! (L'agent a complété tous les niveaux)")
 
 
 if __name__ == "__main__":
