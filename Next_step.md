@@ -83,7 +83,20 @@
 - [x] 4.3 — Implémenter `evaluation/metrics.py` : Sharpe, Sortino, Calmar, MDD, Win Rate, Profit Factor (22/09, fonctions pures testées sur cas calculés à la main)
 - [x] 4.4 — Implémenter `evaluation/benchmark.py` : Buy & Hold (formule fermée) + baseline aléatoire (rejoue le vrai `CryptoTradingEnv`, mêmes frais/règles — comparaison à armes égales)
 - [x] 4.5 — Implémenter `evaluation/backtest.py` : charge un modèle, le fait tourner en déterministe sur le seul split test (15% chronologique jamais vu), compare aux deux références, tableau + HTML.
-- [ ] 4.6 — **Résultat du premier backtest réel (Niveau 4, 22/09, 78 812 lignes de test)** : le modèle finit à **-45.16%**, pire que Buy & Hold (**+22.08%**) et que l'aléatoire (**-32.19%**) — Sharpe -25.6, MDD 45.2%, win_rate 32.6%, profit_factor 0.483. **Signal de distribution shift, pas un bug de méthodologie** : la période de train était structurellement baissière (-37%, mesuré le 21/09), la période de test est haussière (Buy & Hold +22% le confirme) — le modèle a probablement appris des comportements défensifs/short adaptés à un marché baissier qui deviennent contre-productifs une fois le régime inversé. Confirme et aggrave un signal déjà vu (évaluation ad hoc à 15 épisodes le 21/09 donnait -20.6%, moins bon que la courbe d'entraînement +10.9% mais pas aussi mauvais). **Conclusion** : toutes les métriques positives observées pendant l'entraînement (L1 à L4, toute la session) mesuraient une performance intra-distribution, pas une vraie généralisation. Reste à faire : comparer L1/L2/L3 sur ce même backtest (le problème est-il propre au short, ou général à toute la stratégie ?), et explorer une exposition à des régimes de marché plus variés pendant l'entraînement (fenêtres temporelles multiples, pas seulement la continuation chronologique actuelle).
+- [x] 4.6 — **Comparaison complète L1→L4 vs Buy & Hold vs aléatoire, backtest réel sur le test set (22/09, 78 812 lignes jamais vues)** :
+
+  | Niveau | Rendement | Sharpe | MDD | Win rate | Profit factor |
+  |---|---|---|---|---|---|
+  | L1 (0% frais) | **+11.36%** | 3.543 | 6.10% | 42.0% | 0.746 |
+  | L2 (frais réels) | **-38.48%** | -16.608 | 38.86% | 37.9% | 0.700 |
+  | L3 (+ domain rand.) | **-29.67%** | -12.726 | 30.42% | 36.9% | 0.855 |
+  | L4 (+ short) | **-45.16%** | -25.560 | 45.20% | 32.6% | 0.483 |
+  | Buy & Hold (référence) | +22.08% | 3.939 | 8.55% | — | — |
+  | Aléatoire (frais réels) | -32.19% | -13.932 | 32.85% | 35.8% | 0.716 |
+
+  **L1 généralise correctement** (positif, Sharpe sain). **La bascule catastrophique arrive exactement à L2** — dès l'introduction des frais réels pendant l'entraînement — pas à L4. **Le short-selling n'est donc pas la cause** du problème de généralisation, il en hérite seulement (L4 est un peu pire que L2/L3, mais du même ordre de grandeur catastrophique). Tout le réglage fin fait cette session sur L2 (`cooldown_steps`, `fee_penalty_weight`, `target_kl`) a amélioré des métriques *intra-distribution* qui ne transfèrent pas au régime de marché du test set (haussier, alors que le train était structurellement baissier à -37%, mesuré le 21/09) — la politique L2-L4 finit pire qu'un aléatoire pur sur 3 niveaux consécutifs. Signal de distribution shift au niveau du curriculum entier, pas un défaut du short en particulier.
+
+  **Prochaines pistes** (aucune tentée pour l'instant) : exposer l'entraînement à des régimes de marché plus variés (fenêtres temporelles multiples/non-contiguës plutôt que la continuation chronologique actuelle, item 1.9 — data augmentation — jamais fait), ou explorer le meta-learning (roadmap V2.4) pour une adaptation explicite au régime de marché.
 - [ ] 4.6 — Comparer SAC vs PPO vs Buy & Hold — décider si retour Phase 3
 
 ---
