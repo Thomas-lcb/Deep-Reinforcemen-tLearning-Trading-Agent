@@ -78,11 +78,12 @@
 ## Phase 4 : Backtesting & Visualisation
 *cf. agent.md §6 Phase 4*
 
-- [x] 4.1 — Implémenter `evaluation/visualization.py` : Moteur de rendu Plotly (Candlesticks + Trades markers + Portfolio heatmap)
+- [x] 4.1 — Implémenter `evaluation/visualization.py` : Moteur de rendu Plotly (Candlesticks + Trades markers + Portfolio heatmap). Complété le 22/09 : marqueurs `short`/`cover`/`liquidation` ajoutés (point différé lors de la revue finale du short-selling), overlay des courbes de référence.
 - [ ] 4.2 — Créer `notebooks/demo_replay.ipynb` : Script pour charger un modèle et générer une vidéo/HTML d'un épisode de 100-200 steps
-- [ ] 4.3 — Implémenter `evaluation/metrics.py` : Sharpe, Sortino, Calmar, MDD, Win Rate, Profit Factor, etc.
-- [ ] 4.4 — Implémenter `evaluation/benchmark.py` : stratégie Buy & Hold + baseline aléatoire
-- [ ] 4.5 — Implémenter `evaluation/backtest.py` : exécution du modèle sur données out-of-sample
+- [x] 4.3 — Implémenter `evaluation/metrics.py` : Sharpe, Sortino, Calmar, MDD, Win Rate, Profit Factor (22/09, fonctions pures testées sur cas calculés à la main)
+- [x] 4.4 — Implémenter `evaluation/benchmark.py` : Buy & Hold (formule fermée) + baseline aléatoire (rejoue le vrai `CryptoTradingEnv`, mêmes frais/règles — comparaison à armes égales)
+- [x] 4.5 — Implémenter `evaluation/backtest.py` : charge un modèle, le fait tourner en déterministe sur le seul split test (15% chronologique jamais vu), compare aux deux références, tableau + HTML.
+- [ ] 4.6 — **Résultat du premier backtest réel (Niveau 4, 22/09, 78 812 lignes de test)** : le modèle finit à **-45.16%**, pire que Buy & Hold (**+22.08%**) et que l'aléatoire (**-32.19%**) — Sharpe -25.6, MDD 45.2%, win_rate 32.6%, profit_factor 0.483. **Signal de distribution shift, pas un bug de méthodologie** : la période de train était structurellement baissière (-37%, mesuré le 21/09), la période de test est haussière (Buy & Hold +22% le confirme) — le modèle a probablement appris des comportements défensifs/short adaptés à un marché baissier qui deviennent contre-productifs une fois le régime inversé. Confirme et aggrave un signal déjà vu (évaluation ad hoc à 15 épisodes le 21/09 donnait -20.6%, moins bon que la courbe d'entraînement +10.9% mais pas aussi mauvais). **Conclusion** : toutes les métriques positives observées pendant l'entraînement (L1 à L4, toute la session) mesuraient une performance intra-distribution, pas une vraie généralisation. Reste à faire : comparer L1/L2/L3 sur ce même backtest (le problème est-il propre au short, ou général à toute la stratégie ?), et explorer une exposition à des régimes de marché plus variés pendant l'entraînement (fenêtres temporelles multiples, pas seulement la continuation chronologique actuelle).
 - [ ] 4.6 — Comparer SAC vs PPO vs Buy & Hold — décider si retour Phase 3
 
 ---
