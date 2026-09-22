@@ -376,6 +376,19 @@ class TestEpisode:
         assert len(history) == 2
         assert "price" in history.columns
 
+    def test_trade_history_persists_pnl_pct_for_closing_trades(self, env):
+        env.max_position_pct = 1.0
+        env.cooldown_steps = 0
+        env.reset(seed=0)
+        env.step(np.array([1.0]))
+        env.step(np.array([-1.0]))
+        history = env.get_trade_history()
+        assert "pnl_pct" in history.columns
+        buy_row = history[history["type"] == "buy"].iloc[0]
+        sell_row = history[history["type"] == "sell"].iloc[0]
+        assert pd.isna(buy_row["pnl_pct"])
+        assert not pd.isna(sell_row["pnl_pct"])
+
 
 class TestSB3Compat:
     def test_check_env(self, env):

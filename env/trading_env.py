@@ -563,6 +563,11 @@ class CryptoTradingEnv(gym.Env):
             "amount_asset": trade["amount_asset"],
             "proportion": trade["proportion"],
             "fee": trade["fee"],
+            # Only closing trades (sell/cover/liquidation) carry a realized
+            # pnl_pct; opening trades (buy/short) don't have one yet. NaN
+            # here (not 0.0) so a backtest can distinguish "no pnl yet"
+            # from "broke even" when computing win_rate/profit_factor.
+            "pnl_pct": trade.get("pnl_pct", np.nan),
             "portfolio_value": self._portfolio_value(),
             "balance_usdt": self.balance_usdt,
             "balance_asset": self.balance_asset,
