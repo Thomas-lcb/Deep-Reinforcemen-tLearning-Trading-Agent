@@ -167,14 +167,16 @@
 
   **Multi-seed sur le test set** (même config, aucun seed explicite dans le code — `training/curriculum.py` ne fixe jamais de graine, chaque lancement est donc déjà un seed indépendant) :
 
-  | | seed 1 | seed 2 | seed 3 |
-  |---|---|---|---|
-  | Rendement | +9.10% | +9.45% | (en cours) |
-  | Sharpe | 2.695 | 2.959 | |
-  | Profit factor | 1.640 | 1.687 | |
-  | Win rate | 46.5% | 45.7% | |
+  | | seed 1 | seed 2 | seed 3 | aléatoire (référence) |
+  |---|---|---|---|---|
+  | Rendement | +9.10% | +9.45% | +6.24% | -0.62% |
+  | Sharpe | 2.695 | 2.959 | 2.206 | -0.124 |
+  | Profit factor | 1.640 | 1.687 | 1.299 | 1.205 |
+  | Win rate | 46.5% | 45.7% | 39.4% | 41.5% |
 
-  **Seed 2 très proche de seed 1** — bon signal de stabilité de l'edge *à l'intérieur du régime haussier du test set* (ce qui ne dit rien sur sa capacité à généraliser à un autre régime, cf. le résultat négatif sur validation ci-dessus). Seed 3 lancé pour confirmer avant de conclure. Modèles sauvegardés : `models/saved/ppo_curriculum_l2_cooldown200_fpw150_seed{1,2}.zip`.
+  Sharpe moyen 2.62 (écart-type ~0.38, plage 2.21-2.96) — **les trois seeds battent largement l'aléatoire** (au minimum +2.3 points de Sharpe), avec une dispersion modérée mais aucun seed qui s'effondre ou n'approche l'aléatoire. Modèles sauvegardés : `models/saved/ppo_curriculum_l2_cooldown200_fpw150_seed{1,2,3}.zip`.
+
+  **Synthèse piste 3 point 1** : l'edge du modèle sur le test set (régime haussier) est **robuste au seed d'entraînement** (3/3 confirment, dispersion modérée mais tous nettement positifs vs aléatoire) mais **ne généralise pas au régime baissier** (split validation : quasi indiscernable de l'aléatoire, moins bon que Buy & Hold en risque-ajusté). Ce n'est donc pas un artefact de chance sur un seed particulier — c'est une compétence réelle mais **limitée à un seul régime de marché**, cohérente avec le fait que L2 est long-only (pas de short) : dans un marché qui monte, l'agent capture une partie du mouvement plus efficacement qu'un aléatoire ; dans un marché qui baisse, n'ayant que "vendre pour être plat" comme option défensive, il ne fait pas mieux qu'un aléatoire. **Piste naturelle qui en découle** : le short-selling (Niveau 4, déjà implémenté et mergé depuis la Phase 3-ter) n'a jamais été réévalué avec le fix de turnover (cooldown=200/fee_penalty_weight=150) — c'est exactement le mécanisme qui manque pour le régime baissier du split validation, et il existe déjà dans le repo sans travail d'implémentation supplémentaire.
 
 ---
 
