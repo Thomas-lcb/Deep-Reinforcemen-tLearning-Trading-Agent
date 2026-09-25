@@ -134,6 +134,24 @@
   | **Δ Sharpe modèle − aléatoire** | -2.68 (pire) | -0.28 (à peu près à égalité) | **+2.45 (nettement mieux)** |
 
   Contre-intuitif mais informatif : le rendement brut du modèle à cooldown=200 (+6.36%) est *inférieur* à celui à cooldown=500 (+8.76%) et au chiffre du sweep eval-only à 200 (+13.38%, obtenu avec le modèle entraîné à 500 — ne se reproduit donc pas au réentraînement, c'était en partie un artefact de l'interaction entre une politique entraînée à 500 et évaluée à 200). Mais c'est **la première fois que le modèle bat clairement son propre aléatoire de référence** (Sharpe +2.45 d'écart, contre quasi-égalité à cooldown=500) — parce qu'à cooldown=200 l'aléatoire lui-même devient franchement perdant (plus de trades = plus de frais payés sans edge = dérive négative), alors que le modèle reste net positif. **Premier signal crédible d'un edge réel**, même modeste, plutôt qu'une simple absence de catastrophe. `cooldown=200` gardé comme config actuelle. Toujours n=1 (une seule fenêtre de test) — à confirmer par la piste 2 (sélectivité apprise) avant de conclure définitivement.
+- [x] 4.12 — **Piste 2 : redesign action/reward pour une sélectivité apprise (25/09)**, deux leviers testés, tous deux négatifs sur l'objectif de sélectivité :
+
+  **a) Sweep eval-only de `dead_zone`** (0.1→0.7, `cooldown=200` fixé, sans réentraîner — le seuil s'applique à l'interprétation de l'action, pas aux poids) : nombre de trades collé à 388-392 sur toute la plage, **aucun effet mesurable**. En déterministe, la policy sort une action moyenne déjà proche des bornes ±1 la quasi-totalité du temps — élargir le seuil d'interprétation ne peut rien changer si la policy elle-même n'a jamais appris à produire des valeurs modérées. Confirme et quantifie ce que les commentaires de `config.yaml` notaient déjà de façon qualitative depuis 3b.7.
+
+  **b) `fee_penalty_weight` 20→150 (7.5×), réentraînement complet** (`cooldown=200` conservé ; modèle précédent sauvegardé dans `models/saved/ppo_curriculum_l2_cooldown200_fpw20_baseline.zip`) — cette fois un vrai signal de reward pendant l'entraînement, pas un seuil post-hoc. Résultat :
+
+  | | fee_penalty_weight=20 | **fee_penalty_weight=150** |
+  |---|---|---|
+  | Rendement modèle | +6.36% | **+9.10%** |
+  | Sharpe modèle | 2.330 | **2.695** |
+  | Profit factor | 1.456 | **1.640** |
+  | Win rate | 44.0% | **46.5%** |
+  | **Trades** | **392 (plafond)** | **392 (plafond, inchangé)** |
+  | Δ Sharpe vs aléatoire matché | +2.454 | **+2.819** |
+
+  Amélioration réelle sur toutes les métriques de rendement/risque (et l'écart avec l'aléatoire s'élargit encore), **mais le nombre de trades reste identique au plafond théorique du cooldown** — même à 7.5× le poids précédent, la policy ne réduit pas sa fréquence de trade d'un seul cran. Elle devient un peu meilleure dans *ce qu'elle fait* à chaque trade autorisé, mais ne choisit toujours pas *quand* trader.
+
+  **Conclusion piste 2 : sélectivité apprise non obtenue, ni par le seuil d'interprétation (dead_zone) ni par le poids de la pénalité (fee_penalty_weight)**. C'est cohérent avec un diagnostic architectural plutôt qu'un problème de réglage : avec un espace d'action continu et une politique gaussienne, la moyenne apprise se cale sur les bornes et aucun des deux leviers testés ne peut la faire bouger vers le centre — il faudrait soit un espace d'action discret (option plus lourde, écartée à ce stade car elle invaliderait le curriculum complet L1→L4), soit un mécanisme d'exploration différent, non testés ici. `fee_penalty_weight=150` gardé en config malgré tout (net mieux que 20 sur toutes les métriques observées, même sans résoudre la sélectivité). Passage à la piste 3.
 
 ---
 
