@@ -165,7 +165,16 @@
 
   **L'edge mesuré sur le test set (Sharpe modèle 2.695 vs aléatoire -0.124, écart +2.82) ne se reproduit pas sur le split validation** : le modèle y est quasi indiscernable de l'aléatoire (-9.51% vs -9.30%, Sharpe -2.34 vs -2.45) et **moins bon que Buy & Hold en risque-ajusté** (Sharpe -2.34 vs -1.83 — Buy & Hold traverse une baisse de façon plus régulière que le modèle, qui est plus chahuté pour un rendement similaire). Signal clair que l'edge est dépendant du régime de marché (haussier) plutôt qu'une compétence générale — ramène, sous une forme cette fois mesurée et non supposée, l'inquiétude initiale de distribution shift du 22/09.
 
-  **Multi-seed sur le test set (en cours)** : `ppo_curriculum_l2_cooldown200_fpw150_seed1.zip` sauvegardé (= le modèle actuel), seed 2 en cours de réentraînement (même config, aucun seed explicite dans le code — `training/curriculum.py` ne fixe jamais de graine, chaque lancement est donc déjà un seed indépendant).
+  **Multi-seed sur le test set** (même config, aucun seed explicite dans le code — `training/curriculum.py` ne fixe jamais de graine, chaque lancement est donc déjà un seed indépendant) :
+
+  | | seed 1 | seed 2 | seed 3 |
+  |---|---|---|---|
+  | Rendement | +9.10% | +9.45% | (en cours) |
+  | Sharpe | 2.695 | 2.959 | |
+  | Profit factor | 1.640 | 1.687 | |
+  | Win rate | 46.5% | 45.7% | |
+
+  **Seed 2 très proche de seed 1** — bon signal de stabilité de l'edge *à l'intérieur du régime haussier du test set* (ce qui ne dit rien sur sa capacité à généraliser à un autre régime, cf. le résultat négatif sur validation ci-dessus). Seed 3 lancé pour confirmer avant de conclure. Modèles sauvegardés : `models/saved/ppo_curriculum_l2_cooldown200_fpw150_seed{1,2}.zip`.
 
 ---
 
