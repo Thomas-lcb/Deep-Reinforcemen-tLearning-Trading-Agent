@@ -60,8 +60,17 @@ market:
   history_years: 1
 
 fees:
-  maker: 0.001
-  taker: 0.001
+  maker: 0.001                    # 0.10% — taux Binance standard, sans remise BNB. Confirmé
+  taker: 0.001                    # 0.10%   réaliste le 25/09/2026 par relevé des frais actuels
+                                   # (Binance/Bybit 0.10%, OKX 0.08%/0.10%, Kraken 0.40%/0.80%,
+                                   # Coinbase US 0.50%/0.90%) : Binance/Bybit/OKX dominent le
+                                   # volume algo précisément parce que leurs frais sont bas — un
+                                   # vrai bot n'utiliserait pas Kraken/Coinbase. Le run L2 à
+                                   # cooldown_steps=500 (25/09) a déjà prouvé ce taux survivable
+                                   # une fois le turnover maîtrisé (+7.29%, PF 1.909) ; la marge de
+                                   # sécurité vient de corriger le turnover, pas de gonfler le frais.
+                                   # NB : training/curriculum.py::set_curriculum_level() surcharge
+                                   # ces valeurs par niveau — c'est là qu'il faut aussi les changer.
 
 action:
   dead_zone: 0.1  # Doublé (était 0.05). Avec train/std maintenu sain par target_kl (~1.0,
