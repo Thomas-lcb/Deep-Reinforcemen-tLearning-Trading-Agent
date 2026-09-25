@@ -152,6 +152,20 @@
   Amélioration réelle sur toutes les métriques de rendement/risque (et l'écart avec l'aléatoire s'élargit encore), **mais le nombre de trades reste identique au plafond théorique du cooldown** — même à 7.5× le poids précédent, la policy ne réduit pas sa fréquence de trade d'un seul cran. Elle devient un peu meilleure dans *ce qu'elle fait* à chaque trade autorisé, mais ne choisit toujours pas *quand* trader.
 
   **Conclusion piste 2 : sélectivité apprise non obtenue, ni par le seuil d'interprétation (dead_zone) ni par le poids de la pénalité (fee_penalty_weight)**. C'est cohérent avec un diagnostic architectural plutôt qu'un problème de réglage : avec un espace d'action continu et une politique gaussienne, la moyenne apprise se cale sur les bornes et aucun des deux leviers testés ne peut la faire bouger vers le centre — il faudrait soit un espace d'action discret (option plus lourde, écartée à ce stade car elle invaliderait le curriculum complet L1→L4), soit un mécanisme d'exploration différent, non testés ici. `fee_penalty_weight=150` gardé en config malgré tout (net mieux que 20 sur toutes les métriques observées, même sans résoudre la sélectivité). Passage à la piste 3.
+- [x] 4.13 — **Piste 3, point 1 : robustesse du résultat (25/09)**, avant d'investir plus dans l'optimisation. Deux checks demandés par l'utilisateur : split validation (gratuit, pas de réentraînement) et multi-seed sur le test set.
+
+  **Backtest sur le split validation** (78 749 steps, période baissière : Buy & Hold -13.17%, confirmé par 3c.1 — jamais utilisé jusqu'ici pour scorer un résultat) du modèle actuel (`ppo_curriculum_l2`, cooldown=200, fee_penalty_weight=150) :
+
+  | | Modèle | Buy & Hold | Aléatoire |
+  |---|---|---|---|
+  | Rendement | -9.51% | -13.17% | -9.30% |
+  | Sharpe | -2.344 | -1.833 | -2.451 |
+  | Profit factor | 0.646 | — | 0.546 |
+  | Trades | 392 | — | — |
+
+  **L'edge mesuré sur le test set (Sharpe modèle 2.695 vs aléatoire -0.124, écart +2.82) ne se reproduit pas sur le split validation** : le modèle y est quasi indiscernable de l'aléatoire (-9.51% vs -9.30%, Sharpe -2.34 vs -2.45) et **moins bon que Buy & Hold en risque-ajusté** (Sharpe -2.34 vs -1.83 — Buy & Hold traverse une baisse de façon plus régulière que le modèle, qui est plus chahuté pour un rendement similaire). Signal clair que l'edge est dépendant du régime de marché (haussier) plutôt qu'une compétence générale — ramène, sous une forme cette fois mesurée et non supposée, l'inquiétude initiale de distribution shift du 22/09.
+
+  **Multi-seed sur le test set (en cours)** : `ppo_curriculum_l2_cooldown200_fpw150_seed1.zip` sauvegardé (= le modèle actuel), seed 2 en cours de réentraînement (même config, aucun seed explicite dans le code — `training/curriculum.py` ne fixe jamais de graine, chaque lancement est donc déjà un seed indépendant).
 
 ---
 
