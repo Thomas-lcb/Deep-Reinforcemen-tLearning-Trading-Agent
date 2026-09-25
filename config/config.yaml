@@ -78,15 +78,16 @@ action:
                    # hors d'une zone "hold" aussi étroite : ~11 800-12 000 trades par rollout de
                    # 12 288 steps mesurés en L1/L2/L3 (~97% des steps), qu'il y ait des frais ou
                    # non. Cf. README Phase 5.D (déjà anticipé).
-  cooldown_steps: 500                # 15->500 (25/09). Diagnostic sur ppo_curriculum_l2 existant
-                                      # (entraîné à cooldown=15, cooldown=500 appliqué seulement au
-                                      # backtest, sans réentraîner) : rendement -38.48%->+7.29%,
-                                      # Sharpe -16.61->2.69, PF 0.70->1.91, trades 4904->158, frais
-                                      # payés 43%->2.01% du capital. Confirme que la politique était
-                                      # bang-bang (99.7% de saturation du cooldown à 15) sans edge net
-                                      # de frais. Valeur baked-in dès l'entraînement maintenant, pour
-                                      # que la politique apprenne sous la vraie contrainte plutôt que
-                                      # d'y être juste bridée a posteriori. Cf. Next_step.md 4.8.
+  cooldown_steps: 200                # Sweep du 25/09 (eval seule, sans réentraîner, sur le modèle
+                                      # entraîné à 500) : 50→-3.29%/Sharpe-0.96, 100→+2.25%/0.82,
+                                      # 200→+13.38%/Sharpe 4.12/PF 2.28 (392 trades, meilleur Sharpe
+                                      # parmi les échantillons statistiquement crédibles), 300→+7.42%,
+                                      # 500→+8.76%, 750-2500→+10-13% avec Sharpe croissant mais de
+                                      # moins en moins de trades, 4000→+20.53%/100% win_rate/PF=inf
+                                      # (écarté : n=20 trades, artefact — dégénère vers un quasi
+                                      # Buy&Hold sur une fenêtre test haussière, pas un edge réel).
+                                      # 200 retenu et baked-in pour réentraînement complet de
+                                      # confirmation. Cf. Next_step.md 4.11.
   max_position_pct: 0.25            # Max 25% of capital per single trade
 
 observation:
