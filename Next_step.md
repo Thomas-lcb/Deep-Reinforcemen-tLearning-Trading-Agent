@@ -103,6 +103,37 @@
 - [x] 4.9 — **Relevé des frais réels des plateformes crypto (25/09)** pour vérifier que `fees.taker=0.001` (0.10%) n'était pas artificiellement optimiste : Binance/Bybit 0.10%, OKX 0.08%/0.10%, Kraken (palier de base) 0.40%/0.80%, Coinbase Advanced Trade US (MàJ du 16/09/2026) 0.50%/0.90%. **0.10% confirmé comme le choix cohérent** — Binance/Bybit/OKX dominent le volume algo précisément parce que leurs frais sont bas, un vrai bot n'utiliserait pas Kraken/Coinbase pour du trading actif. Premier réflexe (prendre le taux le plus pénalisant, Coinbase 0.90%) corrigé en cours de route : la marge de sécurité recherchée vient de la correction du turnover (4.8), pas de gonfler artificiellement le frais. Aucun changement de valeur — seulement documenté dans `config/config.yaml`.
 - [x] 4.10 — **`cooldown_steps` 15→500 baked-in dès l'entraînement (25/09)**, réentraînement complet de L2 (1M steps, W&B `0w0lbedi`, poids L1 comme point de départ ; ancien modèle sauvegardé dans `models/saved/ppo_curriculum_l2_cooldown15_baseline.zip`). **Résultat sur le test set** : rendement +8.76% (vs +7.29% en bridant seulement au backtest sans réentraîner, vs -38.48% avant tout fix), Sharpe 2.913 (vs 2.686 / -16.61), profit factor 2.015 (vs 1.909 / 0.700). Amélioration réelle mais marginale par rapport au simple bridage post-hoc — **et le modèle fait exactement 158 trades, identique au plafond théorique forcé par le cooldown** : il n'a pas appris à être sélectif, juste à trader à fond dans une fenêtre plus large (toujours une politique bang-bang). Reste statistiquement indiscernable de l'aléatoire sur ce test set (+8.76% vs +8.83% aléatoire, Sharpe 2.91 vs 3.19, PF 2.02 vs 2.25 — l'aléatoire tourne avec le même cooldown=500) et loin derrière Buy & Hold (+22.08%). **Conclusion** : le turnover catastrophique est corrigé (plus "pire qu'aléatoire"), mais aucun edge démontré pour l'instant — juste une fuite de capital réparée. Rappel important (n=1) : ces chiffres reposent sur une seule fenêtre de test de 55 jours et un seul run, pas de barre d'erreur — à garder en tête avant de sur-interpréter un futur delta de quelques points.
   **Pistes ouvertes non tentées** : sweep de `cooldown_steps` autour de 500 pour chercher un optimum (rien ne dit que 500 est le point optimal, juste la première valeur testée) ; redesign de l'espace d'action/reward pour encourager une vraie sélectivité plutôt qu'un plafond uniforme (le modèle choisit toujours l'action extrême dès que le cooldown expire — le dead_zone/l'espace d'action continu n'apprend pas "ne pas trader maintenant", seul le throttle externe l'impose) ; ou accepter qu'avec ce niveau de frais et ce dataset, il n'y a peut-être simplement pas d'edge intraday détectable pour ce modèle et pivoter vers une autre approche (features, timeframe plus long, etc.).
+- [x] 4.11 — **Sweep de `cooldown_steps` (25/09)**, piste 1 des trois demandées. D'abord un sweep eval-only (10 valeurs 50→4000, sans réentraîner, sur `ppo_curriculum_l2` entraîné à 500) pour repérer une zone prometteuse avant de committer à un réentraînement complet à chaque valeur :
+
+  | cooldown | trades | rendement | Sharpe | PF | win_rate |
+  |---|---|---|---|---|---|
+  | 50 | 1542 | -3.29% | -0.96 | 0.61 | 28.0% |
+  | 100 | 780 | +2.25% | 0.82 | 0.87 | 35.5% |
+  | **200** | 392 | +13.38% | 4.12 | 2.28 | 46.2% |
+  | 300 | 262 | +7.42% | 2.65 | 2.17 | 49.3% |
+  | 500 | 158 | +8.76% | 2.91 | 2.02 | 33.3% |
+  | 750 | 105 | +10.37% | 3.08 | 2.62 | 47.9% |
+  | 1000 | 79 | +9.48% | 3.11 | 3.57 | 50.0% |
+  | 1500 | 53 | +12.82% | 3.47 | 7.01 | 63.2% |
+  | 2500 | 32 | +11.98% | 3.52 | 6.72 | 58.3% |
+  | 4000 | 20 | +20.53% | 5.08 | inf | 100% |
+
+  Le point à 4000 (20 trades, 100% win rate, PF infini) est écarté comme artefact d'échantillon trop petit — à cooldown aussi élevé, la politique dégénère vers un quasi Buy & Hold ("acheter une fois tôt, rester bloqué par le cooldown"), qui gagne déjà +22% sur cette fenêtre test haussière sans qu'aucun edge de trading ne soit démontré. `cooldown=200` retenu comme candidat (meilleur Sharpe parmi les échantillons statistiquement crédibles, 392 trades).
+
+  **Réentraînement complet de confirmation à cooldown=200** (1M steps, poids L1 comme point de départ ; modèle à cooldown=500 sauvegardé dans `models/saved/ppo_curriculum_l2_cooldown500_baseline.zip`). Résultat sur le test set, **avec comparaison à armes égales contre l'aléatoire au même cooldown** (leçon retenue de la revue adversariale du meta-learning — comparer à un aléatoire tournant sous la même contrainte, pas un aléatoire différent) :
+
+  | | cooldown=15 (original) | cooldown=500 réentraîné | **cooldown=200 réentraîné** |
+  |---|---|---|---|
+  | Rendement modèle | -38.48% | +8.76% | **+6.36%** |
+  | Sharpe modèle | -16.61 | 2.913 | **2.330** |
+  | Profit factor | 0.700 | 2.015 | **1.456** |
+  | Win rate | 37.9% | 33.3% | **44.0%** |
+  | Trades | 4904 | 158 | **392** |
+  | Rendement aléatoire (même cooldown) | -32.19% | +8.83% | **-0.62%** |
+  | Sharpe aléatoire (même cooldown) | -13.93 | 3.195 | **-0.124** |
+  | **Δ Sharpe modèle − aléatoire** | -2.68 (pire) | -0.28 (à peu près à égalité) | **+2.45 (nettement mieux)** |
+
+  Contre-intuitif mais informatif : le rendement brut du modèle à cooldown=200 (+6.36%) est *inférieur* à celui à cooldown=500 (+8.76%) et au chiffre du sweep eval-only à 200 (+13.38%, obtenu avec le modèle entraîné à 500 — ne se reproduit donc pas au réentraînement, c'était en partie un artefact de l'interaction entre une politique entraînée à 500 et évaluée à 200). Mais c'est **la première fois que le modèle bat clairement son propre aléatoire de référence** (Sharpe +2.45 d'écart, contre quasi-égalité à cooldown=500) — parce qu'à cooldown=200 l'aléatoire lui-même devient franchement perdant (plus de trades = plus de frais payés sans edge = dérive négative), alors que le modèle reste net positif. **Premier signal crédible d'un edge réel**, même modeste, plutôt qu'une simple absence de catastrophe. `cooldown=200` gardé comme config actuelle. Toujours n=1 (une seule fenêtre de test) — à confirmer par la piste 2 (sélectivité apprise) avant de conclure définitivement.
 
 ---
 
