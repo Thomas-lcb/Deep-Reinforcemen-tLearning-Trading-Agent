@@ -190,7 +190,20 @@
 
   **Cause identifiée** : sur le test set, le modèle fait exclusivement des trades `short`/`cover` (202/190) — **zéro `buy`/`sell`, aucune position longue prise**. Ce n'est pas un modèle qui bascule entre long et short selon le régime détecté : c'est un modèle qui a convergé vers un biais directionnel unique (short permanent). Ça explique le résultat en miroir : excellent en régime baissier (short = bon sens), catastrophique en régime haussier (short = à contre-courant d'un marché +22%). **Même problème de fond que le diagnostic initial du 22/09, sous une forme inversée** — L2 était biaisé long-only (marche en hausse, pas en baisse), L4 s'est biaisé short-only (marche en baisse, pas en hausse). Le mécanisme technique du short fonctionne correctement (pas de levier incontrôlé, pas de crash — les fix de la Phase 3-ter tiennent) ; c'est la politique apprise qui n'est pas adaptative.
 
-  **Hypothèse à vérifier avant de conclure** : est-ce un biais systématique de ce niveau de curriculum (domain randomization + short échantillonnant plus de fenêtres baissières que haussières pendant l'entraînement), ou un artefact de ce seed particulier (comme la dispersion 2.21-2.96 de Sharpe observée sur L2) ? Pas encore testé sur un second seed.
+  **Vérifié sur un 2e seed (28/09) : systématique, pas un artefact de seed.**
+
+  | | L4 seed1 | L4 seed2 |
+  |---|---|---|
+  | Test (haussier) — rendement | -18.37% | **-19.54%** |
+  | Test (haussier) — Sharpe | -6.462 | **-7.402** |
+  | Test — répartition trades | 202 short / 190 cover / 0 buy-sell | 198 short / 194 cover / **0 buy-sell** |
+  | Validation (baissier) — rendement | -2.58% | **+1.63%** |
+  | Validation (baissier) — Sharpe | -0.594 | **+0.551** |
+  | Validation — profit factor | 1.382 | **1.696** |
+
+  Les deux seeds sont **exclusivement short/cover sur le test set** (zéro `buy`/`sell` dans les deux cas) et les deux battent nettement Buy & Hold/aléatoire sur validation (seed2 même net positif, +1.63% vs -13.17% pour Buy & Hold). **Conclusion : L4 apprend systématiquement un biais short-only avec cette config (domain randomization + short activés)**, pas un hasard de seed particulier. C'est une vraie spécialisation baissière (confirmée deux fois, PF>1 sur validation les deux fois), symétrique et opposée à la spécialisation haussière de L2 (confirmée trois fois). Modèles sauvegardés : `models/saved/ppo_curriculum_l4_cooldown200_fpw150_seed{1,2}.zip`.
+
+  **Piste qui en découle, directement actionnable** : L2 (spécialiste haussier, 3 seeds validés) et L4 (spécialiste baissier, 2 seeds validés) existent déjà, entraînés, testés. Un routage simple par détection de régime (ex. pente d'une moyenne mobile) vers l'un ou l'autre serait beaucoup moins cher qu'une nouvelle boucle d'entraînement — repli naturel vers la roadmap V2.6 (ensemble d'agents), en version plus simple (routage déterministe par régime plutôt que vote), et sans le besoin d'apprentissage cross-régime que visait le meta-learning abandonné (4.7).
 
 ---
 
